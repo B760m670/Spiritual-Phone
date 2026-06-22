@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.location.LocationProvider
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
@@ -112,9 +113,11 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     // the latest fix for the "my location" button.
     LaunchedEffect(map) {
         val mlMap = map ?: return@LaunchedEffect
+        DebugLog.log("Map: collecting location updates")
         locationProvider.locationUpdates().collect { loc ->
             lastLocation = loc
             mlMap.locationComponent.forceLocationUpdate(loc)
+            DebugLog.log("Map: forceLocationUpdate ${loc.latitude},${loc.longitude}")
         }
     }
 
@@ -143,6 +146,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                         location.cameraMode = CameraMode.TRACKING
                         location.renderMode = RenderMode.COMPASS
                         location.zoomWhileTracking(FOLLOW_ZOOM)
+                        DebugLog.log("Map: style loaded, location component activated")
                         map = mlMap
                     }
                 }
@@ -167,6 +171,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
  * dot until the user pans the map (MapLibre disengages tracking on gesture).
  */
 private fun recenterOnUser(map: MapLibreMap, lastLocation: Location?) {
+    DebugLog.log("Button: my-location pressed, lastLocation=${lastLocation?.let { "${it.latitude},${it.longitude}" } ?: "null"}")
     val location = map.locationComponent
     location.cameraMode = CameraMode.TRACKING
     location.zoomWhileTracking(FOLLOW_ZOOM)

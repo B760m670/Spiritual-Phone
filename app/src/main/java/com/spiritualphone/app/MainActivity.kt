@@ -30,7 +30,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.map.SpiritRadarMap
+import com.spiritualphone.app.ui.DebugPanel
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
 import kotlinx.coroutines.launch
@@ -86,6 +88,17 @@ private fun SpiritualPhoneApp() {
     var downloading by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         update = UpdateManager.checkForUpdate()
+    }
+
+    var showDebug by remember { mutableStateOf(false) }
+    LaunchedEffect(locationGranted) {
+        val fine = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        DebugLog.log("Permissions: fine=$fine coarse=$coarse")
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -147,6 +160,15 @@ private fun SpiritualPhoneApp() {
                     ) { Text(context.getString(R.string.update_later)) }
                 }
             )
+        }
+
+        Button(
+            onClick = { showDebug = !showDebug },
+            modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
+        ) { Text("DBG") }
+
+        if (showDebug) {
+            DebugPanel(onClose = { showDebug = false }, modifier = Modifier.fillMaxSize())
         }
     }
 }
