@@ -2,6 +2,12 @@
 <resources>
     <string name="app_name">Spiritual Phone</string>
     <string name="permission_rationale">Для работы радара духовной активности приложению нужен доступ к вашему местоположению.</string>
-    <string name="grant_permission">Разрешить доступ</string>
+    <string name="grant_permission">Предоставить доступ</string>
     <string name="locating">Определение местоположения…</string>
+
+    <string name="update_title">Доступно обновление</string>
+    <string name="update_now">Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Загрузка обновления…</string>
+    <string name="update_failed">Не удалось загрузить обновление</string>
 </resources>

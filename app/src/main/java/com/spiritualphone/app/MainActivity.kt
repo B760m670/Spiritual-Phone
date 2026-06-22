@@ -4,19 +4,24 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,13 +30,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.spiritualphone.app.map.SpiritRadarMap
+import com.spiritualphone.app.update.UpdateInfo
+import com.spiritualphone.app.update.UpdateManager
+import kotlinx.coroutines.launch
 
 /**
  * Single entry point of the Spiritual Phone.
  *
- * Milestone 1 (current): app skeleton — schematic map + the player's own
- * GPS position. Hollow detection (magnetometer), markers, sounds and the
- * Bleach-styled UI are layered on in later milestones.
+ * Milestone 1: schematic street map + the player's own GPS position.
+ * In-app updates (GitHub Releases) are wired in here too, so new builds
+ * install without re-downloading the APK by hand.
  */
 class MainActivity : ComponentActivity() {
 
@@ -57,6 +65,7 @@ private val SpiritColors = darkColorScheme(
 @Composable
 private fun SpiritualPhoneApp() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     fun hasLocation() = ContextCompat.checkSelfPermission(
         context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -64,11 +73,18 @@ private fun SpiritualPhoneApp() {
 
     var locationGranted by remember { mutableStateOf(hasLocation()) }
 
-    val permissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+    val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
         locationGranted = result[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             result[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+    }
+
+    // --- In-app update check on launch ---
+    var update by remember { mutableStateOf<UpdateInfo?>(null) }
+    var downloading by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        update = UpdateManager.checkForUpdate()
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -90,6 +106,41 @@ private fun SpiritualPhoneApp() {
                     Text(context.getString(R.string.grant_permission))
                 }
             }
+        }
+
+        update?.let { info ->
+            AlertDialog(
+                onDismissRequest = { if (!downloading) update = null },
+                title = { Text(context.getString(R.string.update_title)) },
+                text = {
+                    Text(
+                        if (downloading) context.getString(R.string.update_downloading)
+                        else "${info.title}\n\n${info.notes}".trim()
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !downloading,
+                        onClick = {
+                            downloading = true
+                            scope.launch {
+                                runCatching {
+                                    val apk = UpdateManager.download(context, info)
+                                    UpdateManager.install(context, apk)
+                                }
+                                downloading = false
+                                update = null
+                            }
+                        }
+                    ) { Text(context.getString(R.string.update_now)) }
+                },
+                dismissButton = {
+                    TextButton(
+                        enabled = !downloading,
+                        onClick = { update = null }
+                    ) { Text(context.getString(R.string.update_later)) }
+                }
+            )
         }
     }
 }
