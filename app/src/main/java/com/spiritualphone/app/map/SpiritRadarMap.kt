@@ -1,6 +1,7 @@
 package com.spiritualphone.app.map
 
 import android.annotation.SuppressLint
+import android.location.Location
 import android.view.Gravity
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,6 +12,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.spiritualphone.app.location.LocationProvider
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -34,12 +37,15 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 
 /**
- * Ordinary street map centred on the user, showing the player's own position
- * via MapLibre's built-in location component (blue GPS dot + compass heading).
+ * Ordinary street map centred on the user, with a working "my location" button.
  *
- * Standard OpenStreetMap raster tiles. The MapLibre logo is hidden; the small
- * OSM attribution (i) is kept (required by the data licence) and tucked into
- * the bottom-left corner. A "my location" button re-centres on the user.
+ * Real device location comes from [LocationProvider] (platform LocationManager)
+ * and is pushed into MapLibre's location component via forceLocationUpdate — the
+ * built-in engine often never delivers a fix, which previously made the button
+ * recenter on the map centre instead of the user.
+ *
+ * Standard OpenStreetMap raster tiles. MapLibre logo hidden; tiny OSM
+ * attribution (i) tucked into the bottom-left corner.
  */
 private const val OSM_STYLE = """
 {
@@ -71,17 +77,18 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     val density = context.resources.displayMetrics.density
     val margin = (8 * density).toInt()
 
+    val locationProvider = remember { LocationProvider(context) }
+
     // MapLibre must be initialised before any MapView is created.
     val mapView = remember {
         MapLibre.getInstance(context)
         org.maplibre.android.maps.MapView(context)
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var lastLocation by remember { mutableStateOf<Location?>(null) }
 
     // Forward Android lifecycle events into the MapView. Adding the observer
-    // while the host is already RESUMED replays ON_CREATE/START/RESUME, so the
-    // MapView is correctly initialised even when this screen appears late
-    // (e.g. right after the location permission is granted).
+    // while the host is already RESUMED replays ON_CREATE/START/RESUME.
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -101,13 +108,21 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         }
     }
 
+    // Feed real device locations into the map's location component and remember
+    // the latest fix for the "my location" button.
+    LaunchedEffect(map) {
+        val mlMap = map ?: return@LaunchedEffect
+        locationProvider.locationUpdates().collect { loc ->
+            lastLocation = loc
+            mlMap.locationComponent.forceLocationUpdate(loc)
+        }
+    }
+
     Box(modifier) {
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.getMapAsync { mlMap ->
-                    // Hide the MapLibre logo; keep the tiny OSM attribution (i)
-                    // tucked into the bottom-left corner.
                     mlMap.uiSettings.isLogoEnabled = false
                     mlMap.uiSettings.attributionGravity = Gravity.BOTTOM or Gravity.START
                     mlMap.uiSettings.setAttributionMargins(margin, 0, 0, margin)
@@ -119,7 +134,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     mlMap.setStyle(Style.Builder().fromJson(OSM_STYLE)) { style ->
                         val location = mlMap.locationComponent
                         location.activateLocationComponent(
-                            LocationComponentActivationOptions.builder(context, style).build()
+                            LocationComponentActivationOptions.builder(context, style)
+                                // We drive updates ourselves (see LaunchedEffect).
+                                .useDefaultLocationEngine(false)
+                                .build()
                         )
                         location.isLocationComponentEnabled = true
                         location.cameraMode = CameraMode.TRACKING
@@ -133,7 +151,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         )
 
         FloatingActionButton(
-            onClick = { map?.let { recenterOnUser(it) } },
+            onClick = { map?.let { recenterOnUser(it, lastLocation) } },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
@@ -144,17 +162,15 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
 }
 
 /**
- * Re-engage camera tracking and fly to the user's current position, mirroring
- * the "my location" button in navigation apps: tapping re-centres and follows
- * the GPS dot; the user can then pan freely (which disengages following) and
- * tap again to re-centre.
+ * "My location" button behaviour, as in navigation apps: re-engage tracking,
+ * and fly straight to the user's real position. Tracking then follows the GPS
+ * dot until the user pans the map (MapLibre disengages tracking on gesture).
  */
-@SuppressLint("MissingPermission")
-private fun recenterOnUser(map: MapLibreMap) {
+private fun recenterOnUser(map: MapLibreMap, lastLocation: Location?) {
     val location = map.locationComponent
     location.cameraMode = CameraMode.TRACKING
     location.zoomWhileTracking(FOLLOW_ZOOM)
-    location.lastKnownLocation?.let { loc ->
+    lastLocation?.let { loc ->
         map.animateCamera(
             CameraUpdateFactory.newLatLngZoom(LatLng(loc.latitude, loc.longitude), FOLLOW_ZOOM)
         )
