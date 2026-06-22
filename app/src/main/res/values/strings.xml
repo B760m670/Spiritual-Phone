@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Spiritual Phone</string>
+    <string name="permission_rationale">Для работы радара духовной активности приложению нужен доступ к вашему местоположению.</string>
+    <string name="grant_permission">Разрешить доступ</string>
+    <string name="locating">Определение местоположения…</string>
+</resources>
