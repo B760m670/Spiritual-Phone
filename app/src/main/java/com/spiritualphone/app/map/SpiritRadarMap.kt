@@ -2,6 +2,8 @@ package com.spiritualphone.app.map
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.graphics.PointF
+import android.graphics.RectF
 import android.location.Location
 import android.provider.Settings
 import android.view.Gravity
@@ -19,6 +21,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,8 +36,13 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.spiritualphone.app.audio.SoundManager
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.location.LocationProvider
+import com.spiritualphone.app.notify.HollowNotifier
+import com.spiritualphone.app.ui.HollowDetailsSheet
+import com.spiritualphone.app.world.GeoMath
+import com.spiritualphone.app.world.HollowSpawner
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -45,13 +53,6 @@ import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 
-/**
- * Ordinary street map centred on the user, with a working "my location" button.
- *
- * Real device location comes from [LocationProvider] (platform LocationManager)
- * and is pushed into MapLibre's location component via forceLocationUpdate. If
- * the system location switch is off, a banner invites the user to enable it.
- */
 private const val OSM_STYLE = """
 {
   "version": 8,
@@ -69,11 +70,15 @@ private const val OSM_STYLE = """
 }
 """
 
-// Shown until the first GPS fix arrives, so the screen is never blank.
 private const val DEFAULT_ZOOM = 13.0
 private const val FOLLOW_ZOOM = 16.0
 private val DEFAULT_CENTER = LatLng(20.0, 0.0)
 
+/**
+ * Ordinary street map with the user's location and the live Hollow "world":
+ * red dots (with ripples) at random coordinates within 20 km, that drift and
+ * despawn. Tapping a dot opens its details sheet.
+ */
 @SuppressLint("MissingPermission")
 @Composable
 fun SpiritRadarMap(modifier: Modifier = Modifier) {
@@ -83,14 +88,19 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     val margin = (8 * density).toInt()
 
     val locationProvider = remember { LocationProvider(context) }
+    val spawner = remember { HollowSpawner() }
+    val notifier = remember { HollowNotifier(context) }
+    val hollows by spawner.hollows.collectAsState()
 
     val mapView = remember {
         MapLibre.getInstance(context)
         org.maplibre.android.maps.MapView(context)
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var hollowLayer by remember { mutableStateOf<HollowLayer?>(null) }
     var lastLocation by remember { mutableStateOf<Location?>(null) }
     var locationEnabled by remember { mutableStateOf(locationProvider.isLocationEnabled()) }
+    var selectedId by remember { mutableStateOf<String?>(null) }
 
     fun openLocationSettings() {
         DebugLog.log("Opening system location settings")
@@ -100,8 +110,6 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         )
     }
 
-    // Forward Android lifecycle into the MapView; re-check the location switch
-    // whenever we resume (e.g. returning from system settings).
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -132,8 +140,26 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             lastLocation = loc
             locationEnabled = true
             mlMap.locationComponent.forceLocationUpdate(loc)
-            DebugLog.log("Map: forceLocationUpdate ${loc.latitude},${loc.longitude}")
         }
+    }
+
+    // Run the Hollow world; notify + sound on each new spawn.
+    LaunchedEffect(spawner) {
+        spawner.onSpawn = { hollow ->
+            DebugLog.log("Hollow spawned at ${hollow.lat},${hollow.lon}")
+            notifier.notifySpawn(hollow)
+            SoundManager.playSpawn(context)
+        }
+        spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
+    }
+
+    // Push the live Hollow set into the map layer.
+    LaunchedEffect(hollows, hollowLayer) {
+        hollowLayer?.update(hollows)
+    }
+
+    DisposableEffect(hollowLayer) {
+        onDispose { hollowLayer?.release() }
     }
 
     Box(modifier) {
@@ -160,7 +186,25 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                         location.cameraMode = CameraMode.TRACKING
                         location.renderMode = RenderMode.COMPASS
                         location.zoomWhileTracking(FOLLOW_ZOOM)
-                        DebugLog.log("Map: style loaded, location component activated")
+
+                        hollowLayer = HollowLayer(style)
+
+                        // Tap a Hollow dot (with tolerance) to open its details.
+                        mlMap.addOnMapClickListener { latLng ->
+                            val p: PointF = mlMap.projection.toScreenLocation(latLng)
+                            val r = 30f
+                            val rect = RectF(p.x - r, p.y - r, p.x + r, p.y + r)
+                            val hit = mlMap.queryRenderedFeatures(rect, HollowLayer.CORE)
+                                .firstOrNull()?.getStringProperty(HollowLayer.PROP_ID)
+                            if (hit != null) {
+                                selectedId = hit
+                                true
+                            } else {
+                                false
+                            }
+                        }
+
+                        DebugLog.log("Map: style loaded, location + hollow layers ready")
                         map = mlMap
                     }
                 }
@@ -202,12 +246,21 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             Icon(Icons.Filled.MyLocation, contentDescription = "Моё местоположение")
         }
     }
+
+    // Details sheet for the tapped Hollow (closes if it despawns).
+    val selected = hollows.find { it.id == selectedId }
+    if (selectedId != null && selected != null) {
+        val distance = lastLocation?.let {
+            GeoMath.distanceM(it.latitude, it.longitude, selected.lat, selected.lon)
+        }
+        HollowDetailsSheet(
+            hollow = selected,
+            distanceM = distance,
+            onDismiss = { selectedId = null },
+        )
+    }
 }
 
-/**
- * "My location" button behaviour, as in navigation apps: re-engage tracking and
- * fly to the user's real position; tracking then follows until the user pans.
- */
 private fun recenterOnUser(map: MapLibreMap, lastLocation: Location?) {
     DebugLog.log("Button: my-location pressed, lastLocation=${lastLocation?.let { "${it.latitude},${it.longitude}" } ?: "null"}")
     val location = map.locationComponent

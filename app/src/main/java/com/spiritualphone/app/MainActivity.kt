@@ -2,6 +2,7 @@ package com.spiritualphone.app
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -88,6 +89,20 @@ private fun SpiritualPhoneApp() {
     var downloading by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         update = UpdateManager.checkForUpdate()
+    }
+
+    // Ask for notification permission (Android 13+) so Hollow alerts can show.
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result ignored: notifications are optional */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     var showDebug by remember { mutableStateOf(false) }
