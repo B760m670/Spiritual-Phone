@@ -17,23 +17,26 @@ android {
         versionName = (project.findProperty("versionName") as String?) ?: "0.1.0"
     }
 
-    // Fixed key so every CI build shares one signature — required for in-app
-    // updates to install over a previously installed build.
+    // Release signing key is provided via the environment (GitHub Secrets,
+    // decoded into a file in CI) and never committed. All CI builds share this
+    // one key, which is required for in-app updates to install over each other.
+    // Local builds without these vars produce an unsigned release.
+    val keystoreFile = System.getenv("KEYSTORE_FILE")?.let { file(it) }?.takeIf { it.exists() }
     signingConfigs {
-        create("shared") {
-            storeFile = file("spiritual.keystore")
-            storePassword = "spiritual"
-            keyAlias = "spiritual"
-            keyPassword = "spiritual"
+        if (keystoreFile != null) {
+            create("release") {
+                storeFile = keystoreFile
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
-        debug {
-            signingConfig = signingConfigs.getByName("shared")
-        }
+        debug { }
         release {
-            signingConfig = signingConfigs.getByName("shared")
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

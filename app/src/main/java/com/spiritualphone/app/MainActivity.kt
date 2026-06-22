@@ -3,6 +3,7 @@ package com.spiritualphone.app
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -124,12 +125,17 @@ private fun SpiritualPhoneApp() {
                         onClick = {
                             downloading = true
                             scope.launch {
-                                runCatching {
+                                val result = runCatching {
                                     val apk = UpdateManager.download(context, info)
                                     UpdateManager.install(context, apk)
                                 }
                                 downloading = false
                                 update = null
+                                if (result.isFailure) {
+                                    Toast.makeText(
+                                        context, R.string.update_failed, Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             }
                         }
                     ) { Text(context.getString(R.string.update_now)) }
