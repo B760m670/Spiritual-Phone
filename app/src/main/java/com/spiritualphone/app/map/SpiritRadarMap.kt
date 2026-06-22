@@ -1,15 +1,21 @@
 package com.spiritualphone.app.map
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.location.Location
+import android.provider.Settings
 import android.view.Gravity
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -19,9 +25,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -41,12 +49,8 @@ import org.maplibre.android.maps.Style
  * Ordinary street map centred on the user, with a working "my location" button.
  *
  * Real device location comes from [LocationProvider] (platform LocationManager)
- * and is pushed into MapLibre's location component via forceLocationUpdate — the
- * built-in engine often never delivers a fix, which previously made the button
- * recenter on the map centre instead of the user.
- *
- * Standard OpenStreetMap raster tiles. MapLibre logo hidden; tiny OSM
- * attribution (i) tucked into the bottom-left corner.
+ * and is pushed into MapLibre's location component via forceLocationUpdate. If
+ * the system location switch is off, a banner invites the user to enable it.
  */
 private const val OSM_STYLE = """
 {
@@ -80,22 +84,33 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
 
     val locationProvider = remember { LocationProvider(context) }
 
-    // MapLibre must be initialised before any MapView is created.
     val mapView = remember {
         MapLibre.getInstance(context)
         org.maplibre.android.maps.MapView(context)
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var lastLocation by remember { mutableStateOf<Location?>(null) }
+    var locationEnabled by remember { mutableStateOf(locationProvider.isLocationEnabled()) }
 
-    // Forward Android lifecycle events into the MapView. Adding the observer
-    // while the host is already RESUMED replays ON_CREATE/START/RESUME.
+    fun openLocationSettings() {
+        DebugLog.log("Opening system location settings")
+        context.startActivity(
+            Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+    }
+
+    // Forward Android lifecycle into the MapView; re-check the location switch
+    // whenever we resume (e.g. returning from system settings).
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_CREATE -> mapView.onCreate(null)
                 Lifecycle.Event.ON_START -> mapView.onStart()
-                Lifecycle.Event.ON_RESUME -> mapView.onResume()
+                Lifecycle.Event.ON_RESUME -> {
+                    mapView.onResume()
+                    locationEnabled = locationProvider.isLocationEnabled()
+                }
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> mapView.onStop()
                 Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
@@ -109,13 +124,13 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         }
     }
 
-    // Feed real device locations into the map's location component and remember
-    // the latest fix for the "my location" button.
+    // Feed real device locations into the map's location component.
     LaunchedEffect(map) {
         val mlMap = map ?: return@LaunchedEffect
         DebugLog.log("Map: collecting location updates")
         locationProvider.locationUpdates().collect { loc ->
             lastLocation = loc
+            locationEnabled = true
             mlMap.locationComponent.forceLocationUpdate(loc)
             DebugLog.log("Map: forceLocationUpdate ${loc.latitude},${loc.longitude}")
         }
@@ -138,7 +153,6 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                         val location = mlMap.locationComponent
                         location.activateLocationComponent(
                             LocationComponentActivationOptions.builder(context, style)
-                                // We drive updates ourselves (see LaunchedEffect).
                                 .useDefaultLocationEngine(false)
                                 .build()
                         )
@@ -154,8 +168,33 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             }
         )
 
+        if (!locationEnabled) {
+            Surface(
+                color = Color(0xF2E53935),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp)
+                    .clickable { openLocationSettings() },
+            ) {
+                Text(
+                    "📍 Геолокация выключена — нажмите, чтобы включить",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                )
+            }
+        }
+
         FloatingActionButton(
-            onClick = { map?.let { recenterOnUser(it, lastLocation) } },
+            onClick = {
+                if (!locationProvider.isLocationEnabled()) {
+                    locationEnabled = false
+                    openLocationSettings()
+                } else {
+                    map?.let { recenterOnUser(it, lastLocation) }
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
@@ -166,9 +205,8 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
 }
 
 /**
- * "My location" button behaviour, as in navigation apps: re-engage tracking,
- * and fly straight to the user's real position. Tracking then follows the GPS
- * dot until the user pans the map (MapLibre disengages tracking on gesture).
+ * "My location" button behaviour, as in navigation apps: re-engage tracking and
+ * fly to the user's real position; tracking then follows until the user pans.
  */
 private fun recenterOnUser(map: MapLibreMap, lastLocation: Location?) {
     DebugLog.log("Button: my-location pressed, lastLocation=${lastLocation?.let { "${it.latitude},${it.longitude}" } ?: "null"}")

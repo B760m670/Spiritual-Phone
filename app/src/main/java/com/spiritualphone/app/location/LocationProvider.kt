@@ -18,9 +18,14 @@ import kotlinx.coroutines.flow.callbackFlow
  * Services). We drive the map's location component ourselves because MapLibre's
  * internal engine frequently never delivers a fix.
  *
- * Heavily logged via [DebugLog] so location issues can be diagnosed on-device.
+ * Listeners are registered on all present providers even if location is
+ * currently OFF, so fixes start flowing automatically the moment the user
+ * enables location (onProviderEnabled). Heavily logged via [DebugLog].
  */
 class LocationProvider(private val context: Context) {
+
+    private fun manager() =
+        context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
 
     private fun providerOrder(): List<String> = buildList {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(LocationManager.FUSED_PROVIDER)
@@ -28,17 +33,21 @@ class LocationProvider(private val context: Context) {
         add(LocationManager.NETWORK_PROVIDER)
     }
 
+    /** Whether the system location master switch is on. */
+    fun isLocationEnabled(): Boolean {
+        val lm = manager()
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            lm.isLocationEnabled
+        } else {
+            providerOrder().any { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+        }
+    }
+
     @SuppressLint("MissingPermission")
     fun locationUpdates(): Flow<Location> = callbackFlow {
-        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val lm = manager()
 
-        val all = lm.allProviders
-        DebugLog.log("Location: allProviders=$all")
-        for (p in providerOrder()) {
-            val present = all.contains(p)
-            val enabled = present && runCatching { lm.isProviderEnabled(p) }.getOrDefault(false)
-            DebugLog.log("Location: provider '$p' present=$present enabled=$enabled")
-        }
+        DebugLog.log("Location: allProviders=${lm.allProviders} locationEnabled=${isLocationEnabled()}")
 
         bestLastKnown(lm)?.let {
             DebugLog.log("Location: lastKnown ${it.provider} ${it.latitude},${it.longitude} acc=${it.accuracy}m")
@@ -53,28 +62,31 @@ class LocationProvider(private val context: Context) {
 
             override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
             override fun onProviderEnabled(provider: String) {
-                DebugLog.log("Location: provider '$provider' enabled")
+                DebugLog.log("Location: provider '$provider' turned ON")
             }
             override fun onProviderDisabled(provider: String) {
-                DebugLog.log("Location: provider '$provider' disabled")
+                DebugLog.log("Location: provider '$provider' turned OFF")
             }
         }
 
+        // Register on every present provider regardless of current enabled state,
+        // so enabling location later starts delivering fixes without re-subscribing.
         var registered = 0
         for (p in providerOrder()) {
-            if (lm.allProviders.contains(p) && runCatching { lm.isProviderEnabled(p) }.getOrDefault(false)) {
-                runCatching {
-                    lm.requestLocationUpdates(p, 1000L, 0f, listener, Looper.getMainLooper())
-                }.onSuccess {
-                    registered++
-                    DebugLog.log("Location: requesting updates from '$p'")
-                }.onFailure {
-                    DebugLog.log("Location: requestUpdates '$p' failed: ${it.message}")
-                }
+            if (!lm.allProviders.contains(p)) continue
+            val enabled = runCatching { lm.isProviderEnabled(p) }.getOrDefault(false)
+            runCatching {
+                lm.requestLocationUpdates(p, 1000L, 0f, listener, Looper.getMainLooper())
+            }.onSuccess {
+                registered++
+                DebugLog.log("Location: listening on '$p' (enabled=$enabled)")
+            }.onFailure {
+                DebugLog.log("Location: requestUpdates '$p' failed: ${it.message}")
             }
         }
-        if (registered == 0) {
-            DebugLog.log("Location: NO enabled providers — is location turned on?")
+        when {
+            registered == 0 -> DebugLog.log("Location: could not register any provider")
+            !isLocationEnabled() -> DebugLog.log("Location: registered, but system location is OFF — waiting for user to enable it")
         }
 
         awaitClose {
