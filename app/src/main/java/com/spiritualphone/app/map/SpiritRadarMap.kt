@@ -19,27 +19,52 @@ import org.maplibre.android.location.modes.RenderMode
 import org.maplibre.android.maps.Style
 
 /**
- * Schematic street map centred on the user, showing the player's own
- * position via MapLibre's built-in location component (GPS dot +
- * compass heading + camera tracking).
+ * Schematic dark "spiritual" map centred on the user, showing the player's own
+ * position via MapLibre's built-in location component (GPS dot + compass +
+ * camera tracking).
  *
- * Uses OpenStreetMap raster tiles — real streets, no API key required.
- * A dark "spiritual" themed style is planned for the design milestone.
+ * The basemap uses OpenFreeMap **vector** tiles (free, no API key) with a
+ * fully custom style defined below — so every colour/layer is ours to change,
+ * unlike the previous raster basemap which could only be drawn over.
  */
-private const val OSM_STYLE = """
+private const val SPIRIT_DARK_STYLE = """
 {
   "version": 8,
+  "name": "Spiritual Dark",
+  "glyphs": "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
   "sources": {
-    "osm": {
-      "type": "raster",
-      "tiles": ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      "tileSize": 256,
-      "attribution": "© OpenStreetMap contributors"
+    "openmaptiles": {
+      "type": "vector",
+      "url": "https://tiles.openfreemap.org/planet"
     }
   },
   "layers": [
-    { "id": "background", "type": "background", "paint": { "background-color": "#0B0E14" } },
-    { "id": "osm", "type": "raster", "source": "osm" }
+    { "id": "background", "type": "background",
+      "paint": { "background-color": "#0B0E14" } },
+    { "id": "landcover", "type": "fill", "source": "openmaptiles", "source-layer": "landcover",
+      "paint": { "fill-color": "#0e1320", "fill-opacity": 0.6 } },
+    { "id": "park", "type": "fill", "source": "openmaptiles", "source-layer": "park",
+      "paint": { "fill-color": "#0d1a16", "fill-opacity": 0.5 } },
+    { "id": "water", "type": "fill", "source": "openmaptiles", "source-layer": "water",
+      "paint": { "fill-color": "#08111e" } },
+    { "id": "building", "type": "fill", "source": "openmaptiles", "source-layer": "building", "minzoom": 13,
+      "paint": { "fill-color": "#161b28", "fill-opacity": 0.7 } },
+    { "id": "road-minor", "type": "line", "source": "openmaptiles", "source-layer": "transportation",
+      "filter": ["in", "class", "minor", "service", "track"],
+      "paint": { "line-color": "#222838",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 12, 0.5, 18, 4] } },
+    { "id": "road-major", "type": "line", "source": "openmaptiles", "source-layer": "transportation",
+      "filter": ["in", "class", "primary", "secondary", "tertiary", "trunk", "motorway"],
+      "paint": { "line-color": "#333a50",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 8, 0.6, 18, 8] } },
+    { "id": "boundary", "type": "line", "source": "openmaptiles", "source-layer": "boundary",
+      "filter": ["<=", "admin_level", 4],
+      "paint": { "line-color": "#3a2030", "line-dasharray": [2, 2], "line-width": 1 } },
+    { "id": "place-label", "type": "symbol", "source": "openmaptiles", "source-layer": "place",
+      "filter": ["in", "class", "city", "town", "village"],
+      "layout": { "text-field": "{name}", "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 6, 10, 12, 15] },
+      "paint": { "text-color": "#9aa0b4", "text-halo-color": "#05070b", "text-halo-width": 1.4 } }
   ]
 }
 """
@@ -91,7 +116,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     .target(DEFAULT_CENTER)
                     .zoom(DEFAULT_ZOOM)
                     .build()
-                map.setStyle(Style.Builder().fromJson(OSM_STYLE)) { style ->
+                map.setStyle(Style.Builder().fromJson(SPIRIT_DARK_STYLE)) { style ->
                     val location = map.locationComponent
                     location.activateLocationComponent(
                         LocationComponentActivationOptions.builder(context, style).build()
