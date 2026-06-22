@@ -19,6 +19,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -30,7 +31,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.spiritualphone.app.detection.ReiatsuEngine
+import com.spiritualphone.app.detection.ReiatsuState
 import com.spiritualphone.app.map.SpiritRadarMap
+import com.spiritualphone.app.ui.ReiatsuIndicator
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
 import kotlinx.coroutines.launch
@@ -88,9 +92,20 @@ private fun SpiritualPhoneApp() {
         update = UpdateManager.checkForUpdate()
     }
 
+    // --- Reiatsu detection (magnetometer) ---
+    val reiatsuEngine = remember { ReiatsuEngine(context) }
+    val reiatsuState by remember { reiatsuEngine.states() }
+        .collectAsState(initial = ReiatsuState.Calibrating)
+
     Box(Modifier.fillMaxSize()) {
         if (locationGranted) {
             SpiritRadarMap(Modifier.fillMaxSize())
+            ReiatsuIndicator(
+                state = reiatsuState,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 48.dp),
+            )
         } else {
             Box(
                 Modifier.fillMaxSize().padding(24.dp),
