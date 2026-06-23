@@ -66,10 +66,14 @@ class HollowLayer(style: Style) {
             interpolator = LinearInterpolator()
             addUpdateListener {
                 val t = it.animatedValue as Float
+                // Expanding wave.
                 ripple.setProperties(
                     circleRadius(6f + t * 22f),
                     circleOpacity((1f - t) * 0.45f),
                 )
+                // Blinking core (мерцание): opacity pulses 0.5 → 1 → 0.5.
+                val blink = 0.5f + 0.5f * Math.sin(t * Math.PI).toFloat()
+                core.setProperties(circleOpacity(blink))
             }
             start()
         }

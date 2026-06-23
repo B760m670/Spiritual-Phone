@@ -39,8 +39,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.spiritualphone.app.audio.SoundManager
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.location.LocationProvider
+import com.spiritualphone.app.model.Hollow
 import com.spiritualphone.app.notify.HollowNotifier
 import com.spiritualphone.app.ui.HollowDetailsSheet
+import com.spiritualphone.app.ui.RadarControls
+import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.GeoMath
 import com.spiritualphone.app.world.HollowSpawner
 import org.maplibre.android.MapLibre
@@ -75,9 +78,10 @@ private const val FOLLOW_ZOOM = 16.0
 private val DEFAULT_CENTER = LatLng(20.0, 0.0)
 
 /**
- * Ordinary street map with the user's location and the live Hollow "world":
- * red dots (with ripples) at random coordinates within 20 km, that drift and
- * despawn. Tapping a dot opens its details sheet.
+ * The map screen: user location, the close-range Hollow dots (within 1 km) and
+ * the radar search (up to 25 km). Hollows exist across the whole spawn radius
+ * but only those within the alert radius are shown normally; the radar reveals
+ * the rest as danger triangles while searching.
  */
 @SuppressLint("MissingPermission")
 @Composable
@@ -101,6 +105,23 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     var lastLocation by remember { mutableStateOf<Location?>(null) }
     var locationEnabled by remember { mutableStateOf(locationProvider.isLocationEnabled()) }
     var selectedId by remember { mutableStateOf<String?>(null) }
+    var radarActive by remember { mutableStateOf(false) }
+    var radarRadiusM by remember { mutableStateOf(AlertConfig.RADAR_RADII_M.first()) }
+    var alarmed by remember { mutableStateOf(false) }
+    val alerted = remember { mutableSetOf<String>() }
+
+    fun distanceTo(h: Hollow): Double? = lastLocation?.let {
+        GeoMath.distanceM(it.latitude, it.longitude, h.lat, h.lon)
+    }
+
+    // Hollows within the close alert radius (shown normally + notified).
+    val alertList = hollows.filter { (distanceTo(it) ?: Double.MAX_VALUE) <= AlertConfig.ALERT_RADIUS_M }
+    // Hollows caught by the radar while searching.
+    val radarList = if (radarActive) {
+        hollows.filter { (distanceTo(it) ?: Double.MAX_VALUE) <= radarRadiusM }
+    } else {
+        emptyList()
+    }
 
     fun openLocationSettings() {
         DebugLog.log("Opening system location settings")
@@ -132,10 +153,8 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         }
     }
 
-    // Feed real device locations into the map's location component.
     LaunchedEffect(map) {
         val mlMap = map ?: return@LaunchedEffect
-        DebugLog.log("Map: collecting location updates")
         locationProvider.locationUpdates().collect { loc ->
             lastLocation = loc
             locationEnabled = true
@@ -143,19 +162,32 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         }
     }
 
-    // Run the Hollow world; notify + sound on each new spawn.
     LaunchedEffect(spawner) {
-        spawner.onSpawn = { hollow ->
-            DebugLog.log("Hollow spawned at ${hollow.lat},${hollow.lon}")
-            notifier.notifySpawn(hollow)
-            SoundManager.playSpawn(context)
-        }
+        spawner.onSpawn = { hollow -> DebugLog.log("Hollow spawned at ${hollow.lat},${hollow.lon}") }
         spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
     }
 
-    // Push the live Hollow set into the map layer.
-    LaunchedEffect(hollows, hollowLayer) {
-        hollowLayer?.update(hollows)
+    // Show only close-range dots (none while the radar is drawing triangles).
+    LaunchedEffect(alertList, radarActive, hollowLayer) {
+        hollowLayer?.update(if (radarActive) emptyList() else alertList)
+    }
+
+    // Notify once per Hollow that enters the 1 km alert radius (sound via channel).
+    LaunchedEffect(alertList) {
+        alertList.forEach { h -> if (alerted.add(h.id)) notifier.notifySpawn(h) }
+        alerted.retainAll(hollows.map { it.id }.toSet())
+    }
+
+    // Radar alarm when more than the threshold of objects are caught.
+    LaunchedEffect(radarList.size, radarActive) {
+        if (radarActive && radarList.size > AlertConfig.DANGER_COUNT_THRESHOLD) {
+            if (!alarmed) {
+                SoundManager.playAlarm(context)
+                alarmed = true
+            }
+        } else {
+            alarmed = false
+        }
     }
 
     DisposableEffect(hollowLayer) {
@@ -189,7 +221,6 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
 
                         hollowLayer = HollowLayer(style)
 
-                        // Tap a Hollow dot (with tolerance) to open its details.
                         mlMap.addOnMapClickListener { latLng ->
                             val p: PointF = mlMap.projection.toScreenLocation(latLng)
                             val r = 30f
@@ -212,6 +243,20 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             }
         )
 
+        // Radar sweep overlay (drawn over the map, locked to the user).
+        val currentMap = map
+        val loc = lastLocation
+        if (radarActive && currentMap != null && loc != null) {
+            RadarOverlay(
+                map = currentMap,
+                userLat = loc.latitude,
+                userLon = loc.longitude,
+                radiusM = radarRadiusM,
+                objects = radarList,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+
         if (!locationEnabled) {
             Surface(
                 color = Color(0xF2E53935),
@@ -230,6 +275,20 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             }
         }
 
+        RadarControls(
+            active = radarActive,
+            radiusM = radarRadiusM,
+            onStart = { r ->
+                radarRadiusM = r
+                radarActive = true
+                map?.let { recenterOnUser(it, lastLocation) }
+            },
+            onStop = { radarActive = false },
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(16.dp),
+        )
+
         FloatingActionButton(
             onClick = {
                 if (!locationProvider.isLocationEnabled()) {
@@ -247,15 +306,11 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         }
     }
 
-    // Details sheet for the tapped Hollow (closes if it despawns).
     val selected = hollows.find { it.id == selectedId }
     if (selectedId != null && selected != null) {
-        val distance = lastLocation?.let {
-            GeoMath.distanceM(it.latitude, it.longitude, selected.lat, selected.lon)
-        }
         HollowDetailsSheet(
             hollow = selected,
-            distanceM = distance,
+            distanceM = distanceTo(selected),
             onDismiss = { selectedId = null },
         )
     }
