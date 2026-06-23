@@ -12,8 +12,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -31,9 +35,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.spiritualphone.app.data.ProfileRepository
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.map.SpiritRadarMap
 import com.spiritualphone.app.ui.DebugPanel
+import com.spiritualphone.app.ui.ProfileScreen
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
 import kotlinx.coroutines.launch
@@ -105,6 +111,8 @@ private fun SpiritualPhoneApp() {
         }
     }
 
+    val profileRepo = remember { ProfileRepository(context) }
+    var showProfile by remember { mutableStateOf(false) }
     var showDebug by remember { mutableStateOf(false) }
     LaunchedEffect(locationGranted) {
         val fine = ContextCompat.checkSelfPermission(
@@ -177,10 +185,24 @@ private fun SpiritualPhoneApp() {
             )
         }
 
-        Button(
-            onClick = { showDebug = !showDebug },
+        IconButton(
+            onClick = { showProfile = true },
             modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
-        ) { Text("DBG") }
+        ) {
+            Icon(
+                Icons.Filled.AccountCircle,
+                contentDescription = "Профиль",
+                tint = Color(0xFFEDEDED),
+            )
+        }
+
+        if (showProfile) {
+            ProfileScreen(
+                repo = profileRepo,
+                onClose = { showProfile = false },
+                onOpenLogs = { showProfile = false; showDebug = true },
+            )
+        }
 
         if (showDebug) {
             DebugPanel(onClose = { showDebug = false }, modifier = Modifier.fillMaxSize())

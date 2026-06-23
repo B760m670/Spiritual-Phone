@@ -38,6 +38,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.spiritualphone.app.audio.SoundManager
+import com.spiritualphone.app.data.ProfileRepository
+import com.spiritualphone.app.data.UserProfile
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.location.LocationProvider
 import com.spiritualphone.app.model.Hollow
@@ -47,6 +49,7 @@ import com.spiritualphone.app.ui.RadarControls
 import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.GeoMath
 import com.spiritualphone.app.world.HollowSpawner
+import com.spiritualphone.app.world.HollowStore
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -96,6 +99,9 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     val locationProvider = remember { LocationProvider(context) }
     val spawner = remember { HollowSpawner() }
     val notifier = remember { HollowNotifier(context) }
+    val store = remember { HollowStore(context) }
+    val profileRepo = remember { ProfileRepository(context) }
+    val profile by profileRepo.profile.collectAsState(initial = UserProfile())
     val hollows by spawner.hollows.collectAsState()
 
     val mapView = remember {
@@ -143,7 +149,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     locationEnabled = locationProvider.isLocationEnabled()
                 }
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
+                Lifecycle.Event.ON_STOP -> {
+                    mapView.onStop()
+                    store.save(spawner.hollows.value)
+                }
                 Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> Unit
             }
@@ -165,6 +174,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(spawner) {
+        spawner.seed(store.load())
         spawner.onSpawn = { hollow -> DebugLog.log("Hollow spawned at ${hollow.lat},${hollow.lon}") }
         spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
     }
@@ -174,9 +184,15 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         hollowLayer?.update(if (radarActive) emptyList() else hollows)
     }
 
-    // Notify once per Hollow that enters the 1 km alert radius (sound via channel).
+    // Notify once per Hollow that enters the alert radius (sound via channel),
+    // honouring the user's notification setting.
     LaunchedEffect(alertList) {
-        alertList.forEach { h -> if (alerted.add(h.id)) notifier.notifySpawn(h) }
+        alertList.forEach { h ->
+            if (h.id !in alerted) {
+                alerted.add(h.id)
+                if (profile.notificationsEnabled) notifier.notifySpawn(h)
+            }
+        }
         alerted.retainAll(hollows.map { it.id }.toSet())
     }
 

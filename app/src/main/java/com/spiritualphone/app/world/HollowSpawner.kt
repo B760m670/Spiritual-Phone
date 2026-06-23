@@ -32,6 +32,12 @@ class HollowSpawner {
     private val rnd = Random.Default
     private var lastSpawnMs = 0L
 
+    /** Restore a previously saved set of Hollows before the simulation starts. */
+    fun seed(initial: List<Hollow>) {
+        if (initial.isNotEmpty()) _hollows.value = initial
+        lastSpawnMs = System.currentTimeMillis()
+    }
+
     /** Drives the simulation; [center] returns the user's current lat/lon. */
     suspend fun simulate(center: () -> Pair<Double, Double>?) {
         while (true) {
