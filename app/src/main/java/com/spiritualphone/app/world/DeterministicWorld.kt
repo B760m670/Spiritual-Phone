@@ -2,6 +2,7 @@ package com.spiritualphone.app.world
 
 import com.spiritualphone.app.model.Hollow
 import com.spiritualphone.app.model.HollowInfo
+import java.util.TimeZone
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.random.Random
@@ -31,10 +32,20 @@ object DeterministicWorld {
     private const val EPOCH_MS = 300_000L          // 5 min
 
     /** Chance a given cell births a Hollow in a given epoch (tunable density). */
-    private const val SPAWN_CHANCE = 0.18
+    private const val SPAWN_CHANCE = 0.20
 
-    private const val LIFETIME_MIN_MS = 120_000L
-    private const val LIFETIME_MAX_MS = 360_000L
+    private const val LIFETIME_MIN_MS = 180_000L   // 3 min
+    private const val LIFETIME_MAX_MS = 480_000L   // 8 min
+
+    // Hidden schedule. A Hollow's appearance is an anomalous event: spawns only
+    // happen inside "active" time windows, decided by a seeded hash of the local
+    // (timezone-aware) window index — chaotic, unknown to the user, and tied to
+    // the user's clock. People physically near each other share a timezone, so
+    // they share the same windows (the world stays locally shared). Most windows
+    // are quiet; this is the main "don't appear too often" control.
+    private const val WINDOW_MS = 90 * 60_000L     // schedule granularity
+    private const val ACTIVE_WINDOW_FRACTION = 0.22
+    private const val SCHEDULE_SALT = 0x53C5CA59A7L
 
     private const val SPEED_MPS = 8.0
     private const val LEG_SEC = 20.0               // heading is held this long
@@ -79,6 +90,9 @@ object DeterministicWorld {
         val lifetime = LIFETIME_MIN_MS +
             (rnd.nextDouble() * (LIFETIME_MAX_MS - LIFETIME_MIN_MS)).toLong()
 
+        // Anomalous-event gate: skip births outside an active schedule window.
+        if (!isActiveWindow(bornAt)) return null
+
         if (nowMs < bornAt || nowMs >= bornAt + lifetime) return null
 
         val (lat, lon, heading) = positionAt(spawnLat, spawnLon, seed, nowMs - bornAt)
@@ -115,6 +129,17 @@ object DeterministicWorld {
         }
         return Triple(lat, lon, heading)
     }
+
+    /** True if [bornAtMs] falls in an active schedule window (user-local time). */
+    private fun isActiveWindow(bornAtMs: Long): Boolean {
+        val localMs = bornAtMs + TimeZone.getDefault().getOffset(bornAtMs)
+        val window = Math.floorDiv(localMs, WINDOW_MS)
+        return unitHash(window xor SCHEDULE_SALT) < ACTIVE_WINDOW_FRACTION
+    }
+
+    /** Deterministic 0.0..1.0 from a Long via SplitMix64. */
+    private fun unitHash(x: Long): Double =
+        (splitmix(x) ushr 11).toDouble() / (1L shl 53).toDouble()
 
     /** Stable 64-bit seed for a (cell, epoch) triple — SplitMix64 mixing. */
     private fun seedFor(a: Long, b: Long, c: Long): Long {

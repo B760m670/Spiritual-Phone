@@ -180,9 +180,19 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
     }
 
-    // Show all Hollow dots (none while the radar is drawing triangles instead).
-    LaunchedEffect(hollows, radarActive, hollowLayer) {
-        hollowLayer?.update(if (radarActive) emptyList() else hollows)
+    // Show only close Hollows (within the 1.2 km alert radius); none while the
+    // radar draws triangles instead. Distant Hollows stay invisible unless the
+    // radar reveals them.
+    LaunchedEffect(alertList, radarActive, hollowLayer) {
+        hollowLayer?.update(if (radarActive) emptyList() else alertList)
+    }
+
+    // Tapping a Hollow centres the map on it — without changing zoom — so it's
+    // unambiguous which Hollow's details are being shown.
+    LaunchedEffect(selectedId) {
+        val id = selectedId ?: return@LaunchedEffect
+        val h = hollows.firstOrNull { it.id == id } ?: return@LaunchedEffect
+        map?.animateCamera(CameraUpdateFactory.newLatLng(LatLng(h.lat, h.lon)))
     }
 
     // Notify once per Hollow that enters the alert radius (sound via channel),
