@@ -6,7 +6,7 @@ package com.spiritualphone.app.world
  */
 object SpawnConfig {
     /** Hollows may appear anywhere within this radius of the user (metres). */
-    const val RADIUS_M = 25_000.0
+    const val RADIUS_M = 10_000.0
 
     /** Simulation tick: how often positions are recomputed (ms). */
     const val TICK_MS = 1_000L

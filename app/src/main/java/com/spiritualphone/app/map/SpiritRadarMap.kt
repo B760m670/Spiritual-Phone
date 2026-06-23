@@ -7,6 +7,7 @@ import android.graphics.RectF
 import android.location.Location
 import android.provider.Settings
 import android.view.Gravity
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -50,6 +51,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.location.LocationComponentActivationOptions
 import org.maplibre.android.location.modes.CameraMode
 import org.maplibre.android.location.modes.RenderMode
@@ -167,9 +169,9 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
     }
 
-    // Show only close-range dots (none while the radar is drawing triangles).
-    LaunchedEffect(alertList, radarActive, hollowLayer) {
-        hollowLayer?.update(if (radarActive) emptyList() else alertList)
+    // Show all Hollow dots (none while the radar is drawing triangles instead).
+    LaunchedEffect(hollows, radarActive, hollowLayer) {
+        hollowLayer?.update(if (radarActive) emptyList() else hollows)
     }
 
     // Notify once per Hollow that enters the 1 km alert radius (sound via channel).
@@ -243,6 +245,12 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             }
         )
 
+        // Dim the map while the radar is on, so its green doesn't blend in
+        // (map and details stay visible underneath).
+        if (radarActive) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.5f)))
+        }
+
         // Radar sweep overlay (drawn over the map, locked to the user).
         val currentMap = map
         val loc = lastLocation
@@ -281,7 +289,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             onStart = { r ->
                 radarRadiusM = r
                 radarActive = true
-                map?.let { recenterOnUser(it, lastLocation) }
+                val loc2 = lastLocation
+                if (map != null && loc2 != null) {
+                    fitRadius(map!!, loc2.latitude, loc2.longitude, r)
+                }
             },
             onStop = { radarActive = false },
             modifier = Modifier
@@ -314,6 +325,21 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             onDismiss = { selectedId = null },
         )
     }
+}
+
+/**
+ * Zoom/pan the map so the search radius exactly fills the view — the radar
+ * "wave" then spans precisely the chosen distance regardless of prior zoom.
+ * Camera tracking is released so the fitted view stays put during the search.
+ */
+private fun fitRadius(map: MapLibreMap, lat: Double, lon: Double, radiusM: Double) {
+    map.locationComponent.cameraMode = CameraMode.NONE
+    val builder = LatLngBounds.Builder()
+    listOf(0.0, 90.0, 180.0, 270.0).forEach { bearing ->
+        val (la, lo) = GeoMath.destination(lat, lon, bearing, radiusM)
+        builder.include(LatLng(la, lo))
+    }
+    map.animateCamera(CameraUpdateFactory.newLatLngBounds(builder.build(), 80))
 }
 
 private fun recenterOnUser(map: MapLibreMap, lastLocation: Location?) {
