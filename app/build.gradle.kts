@@ -37,11 +37,8 @@ android {
         debug { }
         release {
             signingConfig = signingConfigs.findByName("release")
-            // Temporarily disabled while isolating the launch crash, so this
-            // recovery build differs from the last launching build (46/47) only
-            // by the Haze revert. Re-enable once a clean launch is confirmed.
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
