@@ -6,7 +6,9 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.UUID
 
 private val Context.profileDataStore by preferencesDataStore(name = "profile")
 
@@ -24,6 +26,7 @@ class ProfileRepository(context: Context) {
             age = prefs[AGE].orEmpty(),
             avatarPath = prefs[AVATAR],
             notificationsEnabled = prefs[NOTIFICATIONS] ?: true,
+            userId = prefs[USER_ID],
         )
     }
 
@@ -36,10 +39,19 @@ class ProfileRepository(context: Context) {
         if (path == null) it.remove(AVATAR) else it[AVATAR] = path
     }
 
+    /** Returns the stable local id, generating + persisting one on first call. */
+    suspend fun ensureUserId(): String {
+        store.data.first()[USER_ID]?.let { return it }
+        val id = UUID.randomUUID().toString()
+        store.edit { it[USER_ID] = id }
+        return id
+    }
+
     private companion object {
         val NICK = stringPreferencesKey("nickname")
         val AGE = stringPreferencesKey("age")
         val AVATAR = stringPreferencesKey("avatar_path")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
+        val USER_ID = stringPreferencesKey("user_id")
     }
 }

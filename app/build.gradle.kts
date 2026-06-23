@@ -84,6 +84,9 @@ dependencies {
     // MapLibre — free, no API key, schematic vector map
     implementation("org.maplibre.gl:android-sdk:11.5.2")
 
+    // ZXing core — pure-Java QR generation (no Android deps, no network)
+    implementation("com.google.zxing:core:3.5.3")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
 }

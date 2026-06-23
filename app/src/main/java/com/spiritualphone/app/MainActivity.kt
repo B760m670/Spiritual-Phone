@@ -9,21 +9,23 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,9 +38,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.spiritualphone.app.data.ProfileRepository
+import com.spiritualphone.app.data.UserProfile
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.map.SpiritRadarMap
 import com.spiritualphone.app.ui.DebugPanel
+import com.spiritualphone.app.ui.ProfileButton
 import com.spiritualphone.app.ui.ProfileScreen
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
@@ -112,6 +116,7 @@ private fun SpiritualPhoneApp() {
     }
 
     val profileRepo = remember { ProfileRepository(context) }
+    val profile by profileRepo.profile.collectAsState(initial = UserProfile())
     var showProfile by remember { mutableStateOf(false) }
     var showDebug by remember { mutableStateOf(false) }
     LaunchedEffect(locationGranted) {
@@ -185,18 +190,18 @@ private fun SpiritualPhoneApp() {
             )
         }
 
-        IconButton(
+        ProfileButton(
+            avatarPath = profile.avatarPath,
             onClick = { showProfile = true },
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp)
-        ) {
-            Icon(
-                Icons.Filled.AccountCircle,
-                contentDescription = "Профиль",
-                tint = Color(0xFFEDEDED),
-            )
-        }
+            modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
+        )
 
-        if (showProfile) {
+        // Profile slides in from the left edge (left → right) and back out.
+        AnimatedVisibility(
+            visible = showProfile,
+            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
+        ) {
             ProfileScreen(
                 repo = profileRepo,
                 onClose = { showProfile = false },
