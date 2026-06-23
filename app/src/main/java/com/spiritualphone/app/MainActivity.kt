@@ -46,7 +46,6 @@ import com.spiritualphone.app.ui.ProfileButton
 import com.spiritualphone.app.ui.ProfileScreen
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
-import dev.chrisbanes.haze.HazeState
 import kotlinx.coroutines.launch
 
 /**
@@ -120,9 +119,6 @@ private fun SpiritualPhoneApp() {
     val profile by profileRepo.profile.collectAsState(initial = UserProfile())
     var showProfile by remember { mutableStateOf(false) }
     var showDebug by remember { mutableStateOf(false) }
-    // Shared backdrop for Haze: the map marks itself as the source, glass
-    // overlays (profile button) read from it to blur the map behind them.
-    val hazeState = remember { HazeState() }
     LaunchedEffect(locationGranted) {
         val fine = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -135,7 +131,7 @@ private fun SpiritualPhoneApp() {
 
     Box(Modifier.fillMaxSize()) {
         if (locationGranted) {
-            SpiritRadarMap(hazeState = hazeState, modifier = Modifier.fillMaxSize())
+            SpiritRadarMap(Modifier.fillMaxSize())
         } else {
             Box(
                 Modifier.fillMaxSize().padding(24.dp),
@@ -196,7 +192,6 @@ private fun SpiritualPhoneApp() {
 
         ProfileButton(
             avatarPath = profile.avatarPath,
-            hazeState = hazeState,
             onClick = { showProfile = true },
             modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
         )

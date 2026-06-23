@@ -50,8 +50,6 @@ import com.spiritualphone.app.ui.RadarControls
 import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.GeoMath
 import com.spiritualphone.app.world.HollowSpawner
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.haze
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -92,7 +90,7 @@ private val DEFAULT_CENTER = LatLng(20.0, 0.0)
  */
 @SuppressLint("MissingPermission")
 @Composable
-fun SpiritRadarMap(hazeState: HazeState, modifier: Modifier = Modifier) {
+fun SpiritRadarMap(modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val density = context.resources.displayMetrics.density
@@ -107,11 +105,7 @@ fun SpiritRadarMap(hazeState: HazeState, modifier: Modifier = Modifier) {
 
     val mapView = remember {
         MapLibre.getInstance(context)
-        // Texture mode renders the map into an in-hierarchy TextureView (not a
-        // separate SurfaceView), so Compose — and therefore Haze — can sample
-        // and blur it behind the glass overlays.
-        val options = org.maplibre.android.maps.MapLibreMapOptions().textureMode(true)
-        org.maplibre.android.maps.MapView(context, options)
+        org.maplibre.android.maps.MapView(context)
     }
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var hollowLayer by remember { mutableStateOf<HollowLayer?>(null) }
@@ -221,7 +215,7 @@ fun SpiritRadarMap(hazeState: HazeState, modifier: Modifier = Modifier) {
 
     Box(modifier) {
         AndroidView(
-            modifier = Modifier.fillMaxSize().haze(hazeState),
+            modifier = Modifier.fillMaxSize(),
             factory = {
                 mapView.getMapAsync { mlMap ->
                     mlMap.uiSettings.isLogoEnabled = false

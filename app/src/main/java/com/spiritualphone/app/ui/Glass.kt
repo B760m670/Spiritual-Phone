@@ -15,16 +15,15 @@ import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeChild
 
 /**
- * Real Liquid-Glass: samples the [hazeState] backdrop (the live map), blurs and
- * tints it, then draws a glass bevel — the native equivalent of iOS
- * `.glassEffect()`, built on Haze (RenderEffect/AGSL under the hood).
+ * Real Liquid-Glass: samples the [hazeState] backdrop, blurs and tints it, then
+ * draws a glass bevel — the native equivalent of iOS `.glassEffect()`, built on
+ * Haze (RenderEffect/AGSL under the hood).
  *
- * On surfaces/devices where the backdrop can't be blurred (API < 31, or a
- * backdrop that isn't captured), Haze falls back to [fallbackTint] as a solid
- * frost, so the control still reads as dark glass.
- *
- * The backdrop must be marked with `Modifier.haze(hazeState)` (see the map in
- * SpiritRadarMap) and this child must be drawn on top of it.
+ * NOT currently wired into the live UI: applying it over the MapLibre map
+ * surface (which needs textureMode) crashed on some GPUs (Mali/Samsung), so the
+ * profile button uses the dependency-free faux [glass] for now. Kept here to
+ * reintroduce safely later — over a Compose backdrop, gated to API 31+ — with
+ * the backdrop marked `Modifier.haze(hazeState)` and this child drawn on top.
  */
 fun Modifier.glass(
     hazeState: HazeState,
