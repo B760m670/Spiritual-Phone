@@ -43,6 +43,7 @@ fun HollowDetailsSheet(
             Row("Раса", hollow.info.race)
             Row("Численность", hollow.info.count.toString())
             Row("Духовная сила", hollow.info.spiritualPower)
+            Row("Местность", hollow.terrainType.ruName)
             Row("Расстояние", distanceM?.let { formatDistance(it) } ?: "—")
         }
     }

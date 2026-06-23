@@ -43,13 +43,13 @@ import com.spiritualphone.app.data.UserProfile
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.location.LocationProvider
 import com.spiritualphone.app.model.Hollow
+import com.spiritualphone.app.notify.HollowAlarmScheduler
 import com.spiritualphone.app.notify.HollowNotifier
 import com.spiritualphone.app.ui.HollowDetailsSheet
 import com.spiritualphone.app.ui.RadarControls
 import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.GeoMath
 import com.spiritualphone.app.world.HollowSpawner
-import com.spiritualphone.app.world.HollowStore
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -99,7 +99,6 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     val locationProvider = remember { LocationProvider(context) }
     val spawner = remember { HollowSpawner() }
     val notifier = remember { HollowNotifier(context) }
-    val store = remember { HollowStore(context) }
     val profileRepo = remember { ProfileRepository(context) }
     val profile by profileRepo.profile.collectAsState(initial = UserProfile())
     val hollows by spawner.hollows.collectAsState()
@@ -151,7 +150,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
                 Lifecycle.Event.ON_STOP -> {
                     mapView.onStop()
-                    store.save(spawner.hollows.value)
+                    // Pre-schedule proximity alarms so alerts arrive while closed.
+                    lastLocation?.let {
+                        HollowAlarmScheduler.schedule(context, it.latitude, it.longitude)
+                    }
                 }
                 Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
                 else -> Unit
@@ -174,8 +176,7 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
     }
 
     LaunchedEffect(spawner) {
-        spawner.seed(store.load())
-        spawner.onSpawn = { hollow -> DebugLog.log("Hollow spawned at ${hollow.lat},${hollow.lon}") }
+        spawner.onSpawn = { hollow -> DebugLog.log("Hollow entered view at ${hollow.lat},${hollow.lon}") }
         spawner.simulate { lastLocation?.let { it.latitude to it.longitude } }
     }
 

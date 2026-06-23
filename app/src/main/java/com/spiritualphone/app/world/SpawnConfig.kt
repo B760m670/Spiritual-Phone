@@ -1,37 +1,17 @@
 package com.spiritualphone.app.world
 
 /**
- * Tunable rules of the Hollow "world". Spawns now cover the full radar range
- * (25 km); only a few are within the close alert radius at any time.
+ * View-side tuning for sampling the shared world. The world's own rules
+ * (density, lifetime, movement) live in [DeterministicWorld]; these only
+ * control how the app *observes* it.
  */
 object SpawnConfig {
-    /** Hollows may appear anywhere within this radius of the user (metres). */
+    /** How far around the user we compute and show Hollows (metres). */
     const val RADIUS_M = 10_000.0
 
-    /** Simulation tick: how often positions are recomputed (ms). */
+    /** How often the nearby world is recomputed (ms). */
     const val TICK_MS = 1_000L
 
-    /** Soonest gap between spawns (ms) while below [MAX_ACTIVE]. */
-    const val SPAWN_INTERVAL_MS = 6_000L
-
-    /** Maximum Hollows alive at once (enough for the radar to find > 5). */
-    const val MAX_ACTIVE = 14
-
-    /** Hollow drift speed (m/s) — supernatural, wanders seeking souls. */
-    const val SPEED_MPS = 8.0
-
-    /** Per-tick chance a Hollow changes heading (0..1). */
-    const val HEADING_CHANGE_CHANCE = 0.15
-
-    /** Hollow lifetime range before it despawns (retreats / destroyed), ms. */
-    const val LIFETIME_MIN_MS = 120_000L
-    const val LIFETIME_MAX_MS = 360_000L
-
-    /** 50 % of spawns land inside this close-range ring so the alert radius
-     *  always has candidates; the other 50 % use the full [RADIUS_M]. */
-    const val NEAR_SPAWN_CHANCE = 0.50
-    const val NEAR_RADIUS_M = 2_000.0
-
-    /** How often to re-query OSM terrain for each Hollow (ms). */
+    /** How often to re-query OSM terrain for each Hollow's label (ms). */
     const val TERRAIN_QUERY_INTERVAL_MS = 45_000L
 }

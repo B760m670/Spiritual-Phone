@@ -53,12 +53,33 @@ class HollowNotifier(private val context: Context) {
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
             .setContentTitle("⚠ Обнаружен Пустой")
-            .setContentText("В пределах 1 км зафиксирована духовная активность")
+            .setContentText("В пределах 1.2 км зафиксирована духовная активность")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
             .build()
 
         runCatching { manager.notify(hollow.id.hashCode(), notification) }
+    }
+
+    /**
+     * Posts a proximity alert from a scheduled background alarm, where no live
+     * [Hollow] object exists — only the precomputed id from the deterministic
+     * world. Same channel (and sound) as [notifySpawn].
+     */
+    @SuppressLint("MissingPermission")
+    fun notifyApproach(hollowId: String) {
+        val manager = NotificationManagerCompat.from(context)
+        if (!manager.areNotificationsEnabled()) return
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⚠ Обнаружен Пустой")
+            .setContentText("В пределах 1.2 км зафиксирована духовная активность")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+
+        runCatching { manager.notify(hollowId.hashCode(), notification) }
     }
 
     companion object {
