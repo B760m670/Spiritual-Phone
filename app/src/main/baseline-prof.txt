@@ -1,0 +1,17 @@
+# Baseline profile — the app's own startup/UI/world classes are AOT-compiled at
+# install time, so the first runs are smooth (no JIT warm-up jank). AndroidX,
+# Compose, Coroutines and Haze ship their own profiles inside their AARs and are
+# merged automatically; this file adds our application code.
+#
+# These are class load/verify rules (always-valid human-readable format). A
+# device-generated profile (Macrobenchmark + Gradle Managed Device) would add
+# precise method-level entries — that's the planned follow-up.
+Lcom/spiritualphone/app/MainActivity;
+Lcom/spiritualphone/app/map/**;
+Lcom/spiritualphone/app/ui/**;
+Lcom/spiritualphone/app/world/**;
+Lcom/spiritualphone/app/model/**;
+Lcom/spiritualphone/app/data/**;
+Lcom/spiritualphone/app/notify/**;
+Lcom/spiritualphone/app/location/**;
+Lcom/spiritualphone/app/audio/**;

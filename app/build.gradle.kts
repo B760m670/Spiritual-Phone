@@ -37,7 +37,8 @@ android {
         debug { }
         release {
             signingConfig = signingConfigs.findByName("release")
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -90,6 +91,11 @@ dependencies {
     // Haze — real backdrop blur (RenderEffect/AGSL) for the Liquid-Glass look.
     // 1.1.0 is the last release built against Kotlin 2.0.21 / Compose 1.7.
     implementation("dev.chrisbanes.haze:haze:1.1.0")
+
+    // ProfileInstaller — applies the bundled baseline profile (AOT-compiles the
+    // startup hot path at install) so first runs render without JIT warm-up
+    // jank, and enables Play Store cloud profiles.
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
