@@ -26,4 +26,12 @@ object SpawnConfig {
     /** Hollow lifetime range before it despawns (retreats / destroyed), ms. */
     const val LIFETIME_MIN_MS = 120_000L
     const val LIFETIME_MAX_MS = 360_000L
+
+    /** 50 % of spawns land inside this close-range ring so the alert radius
+     *  always has candidates; the other 50 % use the full [RADIUS_M]. */
+    const val NEAR_SPAWN_CHANCE = 0.50
+    const val NEAR_RADIUS_M = 2_000.0
+
+    /** How often to re-query OSM terrain for each Hollow (ms). */
+    const val TERRAIN_QUERY_INTERVAL_MS = 45_000L
 }

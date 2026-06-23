@@ -3,6 +3,7 @@ package com.spiritualphone.app.world
 import android.content.Context
 import com.spiritualphone.app.model.Hollow
 import com.spiritualphone.app.model.HollowInfo
+import com.spiritualphone.app.model.TerrainType
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -30,6 +31,7 @@ class HollowStore(context: Context) {
                     put("race", h.info.race)
                     put("count", h.info.count)
                     put("power", h.info.spiritualPower)
+                    put("terrain", h.terrainType.name)
                 }
             )
         }
@@ -58,6 +60,9 @@ class HollowStore(context: Context) {
                         count = o.optInt("count", 1),
                         spiritualPower = o.optString("power", "Неизвестно"),
                     ),
+                    terrainType = runCatching {
+                        TerrainType.valueOf(o.optString("terrain", "OPEN"))
+                    }.getOrDefault(TerrainType.OPEN),
                 )
             }
         }.getOrDefault(emptyList())
