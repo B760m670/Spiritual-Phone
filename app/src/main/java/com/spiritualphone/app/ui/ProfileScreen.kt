@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -23,12 +25,12 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Button
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -64,8 +67,10 @@ import java.io.File
  *  backend exists, and works as an app deep link in the meantime. */
 private fun profileUrl(userId: String?) = "https://spiritualphone.app/u/${userId ?: "anon"}"
 
-private val BG = Color(0xFF0B0E14)
-private val ACCENT = Color(0xFFE53935)
+private val BG = Color(0xFF0A0C10)        // near-black backdrop
+private val CARD = Color(0xFF111114)      // grouped content surface
+private val CIRCLE = Color(0xFF1C1C1E)    // circular action button
+private val ACCENT = Color(0xFFE53935)    // our red (not SpiritChat's blue)
 private val TEXT = Color(0xFFEDEDED)
 private val MUTED = Color(0xFF8A90A0)
 
@@ -104,102 +109,127 @@ fun ProfileScreen(
         }
     }
 
+    val avatar = remember(profile.avatarPath) {
+        profile.avatarPath?.let {
+            runCatching { BitmapFactory.decodeFile(it) }.getOrNull()?.asImageBitmap()
+        }
+    }
+
     Surface(color = BG, modifier = Modifier.fillMaxSize()) {
         Column(
             Modifier
                 .fillMaxSize()
-                .padding(20.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState())
         ) {
+            Spacer(Modifier.height(12.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // QR of the user's profile link, in place of the old title.
                 QrThumbButton(content = profileUrl(userId), onClick = { showQr = true })
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = onClose) {
-                    Icon(Icons.Filled.Close, contentDescription = "Закрыть", tint = TEXT)
+                Box(
+                    Modifier
+                        .size(44.dp)
+                        .glass(shape = CircleShape, tint = Color.Black.copy(alpha = 0.42f))
+                        .clickable(onClick = onClose),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.Close, "Закрыть", tint = TEXT, modifier = Modifier.size(22.dp))
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(20.dp))
 
-            // Avatar
-            val avatar = remember(profile.avatarPath) {
-                profile.avatarPath?.let {
-                    runCatching { BitmapFactory.decodeFile(it) }.getOrNull()?.asImageBitmap()
-                }
-            }
+            // Avatar disc
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                if (avatar != null) {
-                    Image(
-                        bitmap = avatar,
-                        contentDescription = "Аватар",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(110.dp).clip(CircleShape),
-                    )
-                } else {
-                    Icon(
-                        Icons.Filled.Person,
-                        contentDescription = null,
-                        tint = MUTED,
-                        modifier = Modifier.size(110.dp),
-                    )
+                Box(
+                    Modifier.size(104.dp).clip(CircleShape).background(CIRCLE),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (avatar != null) {
+                        Image(
+                            bitmap = avatar,
+                            contentDescription = "Аватар",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                        )
+                    } else {
+                        Icon(
+                            Icons.Filled.Person,
+                            contentDescription = null,
+                            tint = MUTED,
+                            modifier = Modifier.size(56.dp),
+                        )
+                    }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Button(onClick = { pickAvatar.launch("image/*") }) {
-                    Text(if (profile.avatarPath == null) "Поставить аватар" else "Изменить")
-                }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                profile.nickname.ifEmpty { "Мой профиль" },
+                color = TEXT,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.align(Alignment.CenterHorizontally),
+            )
+
+            Spacer(Modifier.height(20.dp))
+
+            // Circular action row (SpiritChat-style discs, our red accent).
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                CircleAction(Icons.Filled.PhotoCamera, "Аватар") { pickAvatar.launch("image/*") }
+                Spacer(Modifier.width(22.dp))
+                CircleAction(Icons.Filled.QrCode2, "QR") { showQr = true }
                 if (profile.avatarPath != null) {
-                    Spacer(Modifier.size(8.dp))
-                    TextButton(onClick = { scope.launch { repo.setAvatarPath(null) } }) {
-                        Text("Удалить", color = ACCENT)
+                    Spacer(Modifier.width(22.dp))
+                    CircleAction(Icons.Filled.Delete, "Удалить") {
+                        scope.launch { repo.setAvatarPath(null) }
                     }
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = nickname,
-                onValueChange = { nickname = it },
-                label = { Text("Никнейм") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            OutlinedTextField(
-                value = age,
-                onValueChange = { input -> age = input.filter { it.isDigit() }.take(3) },
-                label = { Text("Возраст") },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(Modifier.height(12.dp))
-            Button(
-                onClick = { scope.launch { repo.setNickname(nickname); repo.setAge(age) } },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text("Сохранить") }
-
             Spacer(Modifier.height(24.dp))
-            HorizontalDivider(color = Color(0xFF22283A))
+
+            // Profile fields, grouped on a dark card.
+            GroupCard {
+                OutlinedTextField(
+                    value = nickname,
+                    onValueChange = { nickname = it },
+                    label = { Text("Никнейм") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = age,
+                    onValueChange = { input -> age = input.filter { it.isDigit() }.take(3) },
+                    label = { Text("Возраст") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(14.dp))
+                Button(
+                    onClick = { scope.launch { repo.setNickname(nickname); repo.setAge(age) } },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Сохранить") }
+            }
+
             Spacer(Modifier.height(16.dp))
 
-            Text("Настройки", color = TEXT, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Уведомления", color = TEXT, modifier = Modifier.weight(1f))
-                Switch(
-                    checked = profile.notificationsEnabled,
-                    onCheckedChange = { scope.launch { repo.setNotificationsEnabled(it) } },
-                )
+            // Settings card.
+            GroupCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Уведомления", color = TEXT, modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = profile.notificationsEnabled,
+                        onCheckedChange = { scope.launch { repo.setNotificationsEnabled(it) } },
+                    )
+                }
             }
-            Spacer(Modifier.height(8.dp))
+
+            Spacer(Modifier.height(12.dp))
             TextButton(onClick = onOpenLogs) { Text("Логи (отладка)", color = MUTED) }
+            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -210,6 +240,38 @@ fun ProfileScreen(
             onDismiss = { showQr = false },
         )
     }
+}
+
+/** A circular icon action (avatar / QR / delete), SpiritChat-style disc. */
+@Composable
+private fun CircleAction(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(CIRCLE)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, contentDescription = label, tint = ACCENT, modifier = Modifier.size(22.dp))
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(label, color = MUTED, fontSize = 12.sp)
+    }
+}
+
+/** A rounded dark surface that groups related content. */
+@Composable
+private fun GroupCard(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(CARD)
+            .padding(16.dp),
+        content = content,
+    )
 }
 
 /** Small glass tile showing the profile QR; tap to enlarge. */
