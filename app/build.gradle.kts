@@ -87,6 +87,10 @@ dependencies {
     // ZXing core — pure-Java QR generation (no Android deps, no network)
     implementation("com.google.zxing:core:3.5.3")
 
+    // Haze — real backdrop blur (RenderEffect/AGSL) for the Liquid-Glass look.
+    // 1.1.0 is the last release built against Kotlin 2.0.21 / Compose 1.7.
+    implementation("dev.chrisbanes.haze:haze:1.1.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
 }

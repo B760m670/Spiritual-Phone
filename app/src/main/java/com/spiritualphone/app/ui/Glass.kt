@@ -9,6 +9,45 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeStyle
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeChild
+
+/**
+ * Real Liquid-Glass: samples the [hazeState] backdrop (the live map), blurs and
+ * tints it, then draws a glass bevel — the native equivalent of iOS
+ * `.glassEffect()`, built on Haze (RenderEffect/AGSL under the hood).
+ *
+ * On surfaces/devices where the backdrop can't be blurred (API < 31, or a
+ * backdrop that isn't captured), Haze falls back to [fallbackTint] as a solid
+ * frost, so the control still reads as dark glass.
+ *
+ * The backdrop must be marked with `Modifier.haze(hazeState)` (see the map in
+ * SpiritRadarMap) and this child must be drawn on top of it.
+ */
+fun Modifier.glass(
+    hazeState: HazeState,
+    shape: Shape = RoundedCornerShape(22.dp),
+    tint: Color = Color.Black.copy(alpha = 0.28f),
+): Modifier = this
+    .clip(shape)
+    .hazeChild(
+        state = hazeState,
+        style = HazeStyle(
+            tints = listOf(HazeTint(tint)),
+            blurRadius = 24.dp,
+            noiseFactor = 0.04f,
+            fallbackTint = HazeTint(tint.copy(alpha = (tint.alpha + 0.28f).coerceAtMost(1f))),
+        ),
+    )
+    .border(
+        width = 1.dp,
+        brush = Brush.linearGradient(
+            listOf(Color.White.copy(alpha = 0.40f), Color.White.copy(alpha = 0.06f)),
+        ),
+        shape = shape,
+    )
 
 /**
  * Approximates Apple's "Liquid Glass" material with built-in Compose only

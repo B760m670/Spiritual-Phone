@@ -18,15 +18,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.HazeState
 
 /**
- * Map launcher for the profile screen. A dark glass disc so it stands out
- * against the bright map; shows the avatar when set, an empty person
- * silhouette otherwise.
+ * Map launcher for the profile screen. A dark glass disc — backed by Haze so it
+ * blurs the live map behind it (real Liquid-Glass) — so it stands out against
+ * the bright map; shows the avatar when set, an empty person silhouette
+ * otherwise.
  */
 @Composable
 fun ProfileButton(
     avatarPath: String?,
+    hazeState: HazeState,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -38,7 +41,7 @@ fun ProfileButton(
     Box(
         modifier
             .size(54.dp)
-            .glass(shape = CircleShape, tint = Color.Black.copy(alpha = 0.42f))
+            .glass(hazeState = hazeState, shape = CircleShape, tint = Color.Black.copy(alpha = 0.30f))
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
