@@ -2,6 +2,7 @@ package com.spiritualphone.app.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
@@ -13,6 +14,7 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
@@ -39,6 +41,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -56,11 +60,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.spiritualphone.app.ar.SkyAnalyzer
+import com.spiritualphone.app.ar.SkySegmenter
 import com.spiritualphone.app.location.LocationProvider
 import com.spiritualphone.app.model.Hollow
 import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.DeterministicWorld
 import com.spiritualphone.app.world.GeoMath
+import java.util.concurrent.Executors
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -73,6 +80,12 @@ private const val FOV_DEG = 60f
 
 /** Fixed elevation of the sky-anchored Garganta, degrees above the horizon. */
 private const val SKY_ELEVATION_DEG = 45f
+
+/** Exponential low-pass for a wrapping angle (degrees), shortest-arc. */
+private fun smoothAngle(prev: Float, raw: Float, alpha: Float): Float {
+    val delta = ((raw - prev + 540f) % 360f) - 180f
+    return (prev + alpha * delta + 360f) % 360f
+}
 
 /**
  * AR section: a live camera preview with nearby Hollows anchored by real-world
@@ -123,10 +136,21 @@ private fun ArView() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
+    // Sky mask (on-device segmentation) + live coverage for the dev readout.
+    val maskBitmap = remember { mutableStateOf<Bitmap?>(null) }
+    var skyCoverage by remember { mutableStateOf(0f) }
+    val viewAspect = remember { mutableFloatStateOf(0.5f) }
+
     // Camera preview. COMPATIBLE = TextureView, so the lensing RenderEffect can
     // sample the camera pixels.
     val previewView = remember {
         PreviewView(context).apply { implementationMode = PreviewView.ImplementationMode.COMPATIBLE }
+    }
+    val imageAnalysis = remember {
+        ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+            .build()
     }
     LaunchedEffect(Unit) {
         val future = ProcessCameraProvider.getInstance(context)
@@ -136,9 +160,32 @@ private fun ArView() {
                 val preview = Preview.Builder().build()
                     .also { it.setSurfaceProvider(previewView.surfaceProvider) }
                 provider.unbindAll()
-                provider.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview)
+                provider.bindToLifecycle(
+                    lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageAnalysis,
+                )
             }
         }, ContextCompat.getMainExecutor(context))
+    }
+
+    // On-device sky segmentation: load the model off the main thread, then feed
+    // it analyzed frames. The Garganta only renders where this says "sky".
+    DisposableEffect(Unit) {
+        val executor = Executors.newSingleThreadExecutor()
+        var segmenter: SkySegmenter? = null
+        executor.execute {
+            val s = SkySegmenter.create(context) ?: return@execute
+            segmenter = s
+            val analyzer = SkyAnalyzer(s, aspect = { viewAspect.floatValue }) { mask, cov ->
+                maskBitmap.value = mask
+                skyCoverage = cov
+            }
+            imageAnalysis.setAnalyzer(executor, analyzer)
+        }
+        onDispose {
+            imageAnalysis.clearAnalyzer()
+            executor.execute { segmenter?.close() }
+            executor.shutdown()
+        }
     }
 
     // Device orientation from the rotation-vector sensor: azimuth (compass) where
@@ -160,9 +207,12 @@ private fun ArView() {
                     rotation, SensorManager.AXIS_X, SensorManager.AXIS_Z, remapped,
                 )
                 SensorManager.getOrientation(remapped, orientation)
-                azimuth = ((Math.toDegrees(orientation[0].toDouble()).toFloat()) + 360f) % 360f
+                val rawAz = ((Math.toDegrees(orientation[0].toDouble()).toFloat()) + 360f) % 360f
                 // Camera elevation: 0° at the horizon, +90° straight up.
-                pitch = -Math.toDegrees(orientation[1].toDouble()).toFloat()
+                val rawPitch = -Math.toDegrees(orientation[1].toDouble()).toFloat()
+                // Low-pass both to kill sensor jitter (the raw signal is jumpy).
+                azimuth = smoothAngle(azimuth, rawAz, 0.18f)
+                pitch += 0.18f * (rawPitch - pitch)
             }
             override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
         }
@@ -209,14 +259,25 @@ private fun ArView() {
         }
     }
 
-    // The camera, wrapped by the lensing effect anchored to the sky.
+    // The camera, wrapped by the lensing effect anchored to the sky and clipped
+    // to real sky by the segmentation mask.
     GargantaLens(
         open = { gargantaOpen.value },
         center = center,
-        modifier = Modifier.fillMaxSize(),
+        skyMask = { maskBitmap.value },
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { if (it.height > 0) viewAspect.floatValue = it.width.toFloat() / it.height },
     ) {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
     }
+
+    // Dev readout: live sky coverage — confirms the segmenter is alive and aimed.
+    Text(
+        "sky ${(skyCoverage * 100).roundToInt()}%",
+        color = Color.White, fontSize = 12.sp,
+        modifier = Modifier.padding(12.dp),
+    )
 
     // Guide arrow toward the rupture while it's off-screen.
     Canvas(Modifier.fillMaxSize()) {

@@ -65,6 +65,11 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+
+    androidResources {
+        // The sky-segmentation model is mmap'd at runtime — must stay uncompressed.
+        noCompress += "tflite"
+    }
 }
 
 dependencies {
@@ -97,11 +102,16 @@ dependencies {
     // jank, and enables Play Store cloud profiles.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
-    // CameraX — live camera preview for the AR section.
+    // CameraX — live camera preview + frame analysis for the AR section.
     implementation("androidx.camera:camera-core:1.3.4")
     implementation("androidx.camera:camera-camera2:1.3.4")
     implementation("androidx.camera:camera-lifecycle:1.3.4")
     implementation("androidx.camera:camera-view:1.3.4")
+
+    // TensorFlow Lite — on-device sky segmentation (ADE20K DeepLab), so the
+    // Garganta only opens over real sky. GPU delegate with CPU fallback.
+    implementation("org.tensorflow:tensorflow-lite:2.16.1")
+    implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")

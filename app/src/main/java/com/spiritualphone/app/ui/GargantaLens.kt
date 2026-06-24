@@ -1,7 +1,12 @@
 package com.spiritualphone.app.ui
 
+import android.graphics.Bitmap
+import android.graphics.BitmapShader
+import android.graphics.Color
+import android.graphics.Matrix
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
+import android.graphics.Shader
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.compose.animation.core.LinearEasing
@@ -37,10 +42,11 @@ fun GargantaLens(
     open: () -> Float,
     modifier: Modifier = Modifier,
     center: () -> Offset = { Offset(0.5f, 0.5f) },
+    skyMask: () -> Bitmap? = { null },
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Lensed(open, center, modifier, content)
+        Lensed(open, center, skyMask, modifier, content)
     } else {
         Box(modifier, content = content)
     }
@@ -51,10 +57,16 @@ fun GargantaLens(
 private fun Lensed(
     open: () -> Float,
     center: () -> Offset,
+    skyMask: () -> Bitmap?,
     modifier: Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val shader = remember { runCatching { RuntimeShader(AGSL_GARGANTA) }.getOrNull() }
+    // Fallback mask: a single black pixel => sky probability 0 => the rupture is
+    // hidden until the segmenter delivers a real mask. Never show it on a guess.
+    val noSky = remember {
+        Bitmap.createBitmap(intArrayOf(Color.BLACK), 1, 1, Bitmap.Config.ARGB_8888)
+    }
     val transition = rememberInfiniteTransition(label = "garganta")
     val time by transition.animateFloat(
         0f, 1000f, infiniteRepeatable(tween(1_000_000, easing = LinearEasing)), label = "time",
@@ -63,6 +75,12 @@ private fun Lensed(
     val mod = if (shader != null) {
         modifier.graphicsLayer {
             val c = center()
+            val mask = skyMask() ?: noSky
+            val maskShader = BitmapShader(mask, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP)
+            maskShader.setLocalMatrix(Matrix().apply {
+                setScale(size.width / mask.width, size.height / mask.height)
+            })
+            shader.setInputShader("skyMask", maskShader)
             shader.setFloatUniform("uResolution", size.width, size.height)
             shader.setFloatUniform("uCenter", size.width * c.x, size.height * c.y)
             shader.setFloatUniform("uTime", time)
@@ -80,6 +98,7 @@ private fun Lensed(
 // language=AGSL
 private const val AGSL_GARGANTA = """
 uniform shader content;
+uniform shader skyMask;
 uniform float2 uResolution;
 uniform float2 uCenter;
 uniform float uTime;
@@ -133,6 +152,12 @@ half4 main(float2 fragCoord) {
 
     half3 col = bg + ringCol * ring * 1.6;
     col = mix(col, half3(0.0), shadow);
+
+    // Clip the rupture to real sky: where the segmenter says "not sky", show the
+    // plain camera. Soft mask => the rupture tucks behind rooftops/horizon.
+    half sky = skyMask.eval(fragCoord).r;
+    half3 cam = content.eval(fragCoord).rgb;
+    col = mix(cam, col, sky);
     return half4(col, 1.0);
 }
 """
