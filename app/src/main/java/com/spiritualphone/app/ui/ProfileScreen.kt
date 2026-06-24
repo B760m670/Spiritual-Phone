@@ -37,6 +37,8 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -65,6 +67,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -99,7 +102,7 @@ private val OK = Color(0xFF34D399)
 private val ERR = Color(0xFFF87171)
 
 /** Pushed sub-screens of the profile. */
-private enum class ProfileSub { Username, About }
+private enum class ProfileSub { Username, About, Privacy, AppLock }
 
 /**
  * Profile section, SpiritChat-style. One screen with two cross-faded modes:
@@ -259,6 +262,13 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                             }
                             Separator(startInset = 52.dp)
                             SettingRow(
+                                Icons.Filled.Lock, "Конфиденциальность",
+                                onClick = { sub = ProfileSub.Privacy },
+                            ) {
+                                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
+                            }
+                            Separator(startInset = 52.dp)
+                            SettingRow(
                                 Icons.Filled.Info, "О приложении",
                                 onClick = { sub = ProfileSub.About },
                             ) {
@@ -321,6 +331,24 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
             exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
         ) {
             AboutScreen(onBack = { sub = null })
+        }
+        AnimatedVisibility(
+            visible = sub == ProfileSub.Privacy,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            PrivacyScreen(
+                lockEnabled = profile.appLockHash != null,
+                onBack = { sub = null },
+                onOpenAppLock = { sub = ProfileSub.AppLock },
+            )
+        }
+        AnimatedVisibility(
+            visible = sub == ProfileSub.AppLock,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            AppLockScreen(repo = repo, currentHash = profile.appLockHash, onBack = { sub = ProfileSub.Privacy })
         }
     }
 
@@ -601,5 +629,115 @@ private fun AboutScreen(onBack: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** Privacy section — hosts the local app lock (analog of SpiritChat's cloud password). */
+@Composable
+private fun PrivacyScreen(lockEnabled: Boolean, onBack: () -> Unit, onOpenAppLock: () -> Unit) {
+    SubScreenScaffold("Конфиденциальность", onBack = onBack) {
+        Grouped(ROW) {
+            SettingRow(Icons.Filled.Lock, "Блокировка приложения", onClick = onOpenAppLock) {
+                Text(if (lockEnabled) "Вкл" else "Выкл", color = SUBTLE, fontSize = 15.sp)
+                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+/**
+ * App lock setup. Stores a SHA-256 of a PIN locally; the launch gate in
+ * MainActivity asks for it. The local equivalent of "облачный пароль" — no
+ * server, fully functional (not a dead button).
+ */
+@Composable
+private fun AppLockScreen(repo: ProfileRepository, currentHash: String?, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+
+    if (currentHash == null) {
+        var pin by remember { mutableStateOf("") }
+        var confirm by remember { mutableStateOf("") }
+        var error by remember { mutableStateOf<String?>(null) }
+        val canSave = pin.length >= 4 && confirm.isNotEmpty()
+
+        SubScreenScaffold(
+            "Блокировка",
+            onBack = onBack,
+            done = if (canSave) {
+                {
+                    if (pin != confirm) {
+                        error = "PIN не совпадают"
+                    } else {
+                        scope.launch { repo.setAppLock(pin) }
+                        onBack()
+                    }
+                }
+            } else null,
+        ) {
+            LockHero("Защита приложения", "PIN из 4+ цифр будет нужен при каждом запуске.")
+            Grouped(CARD) {
+                PinField("Новый PIN", pin) { pin = it }
+                Separator()
+                PinField("Повтор", confirm) { confirm = it }
+            }
+            if (error != null) {
+                Spacer(Modifier.height(8.dp))
+                Text(error!!, color = ERR, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 4.dp))
+            }
+        }
+    } else {
+        SubScreenScaffold("Блокировка", onBack = onBack) {
+            LockHero("Блокировка включена", "PIN запрашивается при запуске приложения.")
+            Grouped(ROW) {
+                SettingRow(Icons.Filled.LockOpen, "Отключить пароль", onClick = {
+                    scope.launch { repo.clearAppLock() }
+                    onBack()
+                }) {}
+            }
+        }
+    }
+}
+
+/** Centred lock icon + title + description, shared by the app-lock screens. */
+@Composable
+private fun ColumnScope.LockHero(title: String, desc: String) {
+    Spacer(Modifier.height(12.dp))
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.size(72.dp).clip(CircleShape).background(ICON_BG),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.Lock, null, tint = WHITE, modifier = Modifier.size(34.dp))
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(title, color = WHITE, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.height(6.dp))
+        Text(desc, color = SUBTLE, fontSize = 14.sp, textAlign = TextAlign.Center)
+    }
+    Spacer(Modifier.height(24.dp))
+}
+
+/** Numeric PIN field inside a group card. */
+@Composable
+private fun PinField(label: String, value: String, onValueChange: (String) -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+        Text(label, color = LABEL, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(4.dp))
+        BasicTextField(
+            value = value,
+            onValueChange = { v -> onValueChange(v.filter { it.isDigit() }.take(8)) },
+            singleLine = true,
+            textStyle = TextStyle(color = WHITE, fontSize = 16.sp),
+            cursorBrush = SolidColor(WHITE),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            visualTransformation = PasswordVisualTransformation(),
+            modifier = Modifier.fillMaxWidth(),
+            decorationBox = { inner ->
+                Box {
+                    if (value.isEmpty()) Text("••••", color = PLACEHOLDER, fontSize = 16.sp)
+                    inner()
+                }
+            },
+        )
     }
 }

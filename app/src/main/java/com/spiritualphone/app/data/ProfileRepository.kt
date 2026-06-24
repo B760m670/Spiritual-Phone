@@ -28,9 +28,19 @@ class ProfileRepository(context: Context) {
             bio = prefs[BIO].orEmpty(),
             avatarPath = prefs[AVATAR],
             notificationsEnabled = prefs[NOTIFICATIONS] ?: true,
+            appLockHash = prefs[APP_LOCK],
             userId = prefs[USER_ID],
         )
     }
+
+    /** SHA-256 hex of a PIN — what we persist (never the PIN itself). */
+    fun hashPin(pin: String): String {
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        return digest.digest(pin.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+
+    suspend fun setAppLock(pin: String) = store.edit { it[APP_LOCK] = hashPin(pin) }
+    suspend fun clearAppLock() = store.edit { it.remove(APP_LOCK) }
 
     suspend fun setNickname(value: String) = store.edit { it[NICK] = value }
     suspend fun setAge(value: String) = store.edit { it[AGE] = value }
@@ -58,6 +68,7 @@ class ProfileRepository(context: Context) {
         val BIO = stringPreferencesKey("bio")
         val AVATAR = stringPreferencesKey("avatar_path")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
+        val APP_LOCK = stringPreferencesKey("app_lock_hash")
         val USER_ID = stringPreferencesKey("user_id")
     }
 }

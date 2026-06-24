@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,12 +36,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.spiritualphone.app.data.ProfileRepository
+import com.spiritualphone.app.data.UserProfile
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.map.SpiritRadarMap
 import com.spiritualphone.app.ui.AppTab
 import com.spiritualphone.app.ui.ArScreen
 import com.spiritualphone.app.ui.BottomTabBar
 import com.spiritualphone.app.ui.DebugPanel
+import com.spiritualphone.app.ui.LockScreen
 import com.spiritualphone.app.ui.ProfileScreen
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
@@ -115,8 +118,10 @@ private fun SpiritualPhoneApp() {
     }
 
     val profileRepo = remember { ProfileRepository(context) }
+    val profile by profileRepo.profile.collectAsState(initial = UserProfile())
     var tab by remember { mutableStateOf(AppTab.Map) }
     var showDebug by remember { mutableStateOf(false) }
+    var unlocked by remember { mutableStateOf(false) }
     LaunchedEffect(locationGranted) {
         val fine = ContextCompat.checkSelfPermission(
             context, Manifest.permission.ACCESS_FINE_LOCATION
@@ -209,6 +214,12 @@ private fun SpiritualPhoneApp() {
 
         if (showDebug) {
             DebugPanel(onClose = { showDebug = false }, modifier = Modifier.fillMaxSize())
+        }
+
+        // App-lock gate: covers everything until the PIN is entered.
+        val lockHash = profile.appLockHash
+        if (lockHash != null && !unlocked) {
+            LockScreen(repo = profileRepo, expectedHash = lockHash, onUnlock = { unlocked = true })
         }
     }
 }
