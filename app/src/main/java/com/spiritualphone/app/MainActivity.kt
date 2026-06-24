@@ -192,7 +192,6 @@ private fun SpiritualPhoneApp() {
         AnimatedVisibility(visible = tab == AppTab.Profile, enter = fadeIn(), exit = fadeOut()) {
             ProfileScreen(
                 repo = profileRepo,
-                onClose = { tab = AppTab.Map },
                 onOpenLogs = { showDebug = true },
             )
         }
