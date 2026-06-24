@@ -7,7 +7,6 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -114,8 +113,11 @@ private fun ArView() {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    // Camera preview.
-    val previewView = remember { PreviewView(context) }
+    // Camera preview. COMPATIBLE = TextureView, so the lensing RenderEffect can
+    // sample the camera pixels.
+    val previewView = remember {
+        PreviewView(context).apply { implementationMode = PreviewView.ImplementationMode.COMPATIBLE }
+    }
     LaunchedEffect(Unit) {
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({
@@ -128,7 +130,6 @@ private fun ArView() {
             }
         }, ContextCompat.getMainExecutor(context))
     }
-    AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
 
     // Garganta (dev): centred, auto-cycle — cut → open → hold → collapse → repeat.
     val gargantaOpen = remember { Animatable(0f) }
@@ -141,10 +142,10 @@ private fun ArView() {
             delay(1400)
         }
     }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        GargantaShader(open = { gargantaOpen.value }, modifier = Modifier.fillMaxSize())
-    } else {
-        Garganta(Modifier.fillMaxSize())
+
+    // The camera, wrapped by the lensing effect (bends the frame near the rupture).
+    GargantaLens(open = { gargantaOpen.value }, modifier = Modifier.fillMaxSize()) {
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
     }
 
     // Device azimuth (where the camera points) from the rotation-vector sensor.
