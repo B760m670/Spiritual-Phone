@@ -4,9 +4,6 @@ import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -167,7 +164,7 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                             Icon(Icons.Filled.Person, null, tint = SUBTLE, modifier = Modifier.size(52.dp))
                         }
                         // Camera overlay only in edit mode.
-                        AnimatedVisibility(visible = editing, enter = fadeIn(), exit = fadeOut()) {
+                        if (editing) {
                             Box(
                                 Modifier.size(AVATAR).clip(CircleShape).background(Color(0x73000000)),
                                 contentAlignment = Alignment.Center,
