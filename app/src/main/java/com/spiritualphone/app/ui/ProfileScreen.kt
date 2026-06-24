@@ -177,8 +177,6 @@ fun ProfileScreen(
             // Circular action row (SpiritChat-style discs, our red accent).
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 CircleAction(Icons.Filled.PhotoCamera, "Аватар") { pickAvatar.launch("image/*") }
-                Spacer(Modifier.width(22.dp))
-                CircleAction(Icons.Filled.QrCode2, "QR") { showQr = true }
                 if (profile.avatarPath != null) {
                     Spacer(Modifier.width(22.dp))
                     CircleAction(Icons.Filled.Delete, "Удалить") {
