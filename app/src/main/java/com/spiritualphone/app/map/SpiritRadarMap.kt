@@ -13,10 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MyLocation
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -46,7 +42,7 @@ import com.spiritualphone.app.model.Hollow
 import com.spiritualphone.app.notify.HollowAlarmScheduler
 import com.spiritualphone.app.notify.HollowNotifier
 import com.spiritualphone.app.ui.HollowDetailsSheet
-import com.spiritualphone.app.ui.RadarControls
+import com.spiritualphone.app.ui.MapToolbar
 import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.GeoMath
 import com.spiritualphone.app.world.HollowSpawner
@@ -310,10 +306,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             }
         }
 
-        RadarControls(
-            active = radarActive,
-            radiusM = radarRadiusM,
-            onStart = { r ->
+        MapToolbar(
+            radarActive = radarActive,
+            radarRadiusM = radarRadiusM,
+            onStartRadar = { r ->
                 radarRadiusM = r
                 radarActive = true
                 val loc2 = lastLocation
@@ -321,14 +317,8 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     fitRadius(map!!, loc2.latitude, loc2.longitude, r)
                 }
             },
-            onStop = { radarActive = false },
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(start = 16.dp, top = 48.dp),
-        )
-
-        FloatingActionButton(
-            onClick = {
+            onStopRadar = { radarActive = false },
+            onRecenter = {
                 if (!locationProvider.isLocationEnabled()) {
                     locationEnabled = false
                     openLocationSettings()
@@ -336,14 +326,10 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     map?.let { recenterOnUser(it, lastLocation) }
                 }
             },
-            containerColor = Color(0xFF1C1C1E),
-            contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.TopEnd)
-                .padding(end = 16.dp, top = 48.dp)
-        ) {
-            Icon(Icons.Filled.MyLocation, contentDescription = "Моё местоположение")
-        }
+                .padding(end = 16.dp, top = 48.dp),
+        )
     }
 
     val selected = hollows.find { it.id == selectedId }
