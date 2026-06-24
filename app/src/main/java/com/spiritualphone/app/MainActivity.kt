@@ -12,8 +12,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -25,7 +23,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,11 +35,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.spiritualphone.app.data.ProfileRepository
-import com.spiritualphone.app.data.UserProfile
 import com.spiritualphone.app.debug.DebugLog
 import com.spiritualphone.app.map.SpiritRadarMap
+import com.spiritualphone.app.ui.AppTab
+import com.spiritualphone.app.ui.ArScreen
+import com.spiritualphone.app.ui.BottomTabBar
 import com.spiritualphone.app.ui.DebugPanel
-import com.spiritualphone.app.ui.ProfileButton
 import com.spiritualphone.app.ui.ProfileScreen
 import com.spiritualphone.app.update.UpdateInfo
 import com.spiritualphone.app.update.UpdateManager
@@ -67,11 +65,12 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-/** Dark "soul pager" palette — provisional, the real visual design is agreed later. */
+/** Monochrome dark palette (no blue, no red) — SpiritChat-inspired neutral tones. */
 private val SpiritColors = darkColorScheme(
-    primary = Color(0xFFE53935),      // reiatsu red
-    background = Color(0xFF0B0E14),
-    surface = Color(0xFF11151F),
+    primary = Color(0xFFEDEDED),      // near-white accent
+    onPrimary = Color(0xFF0A0C10),
+    background = Color(0xFF000000),
+    surface = Color(0xFF1C1C1E),
     onBackground = Color(0xFFEDEDED),
     onSurface = Color(0xFFEDEDED),
 )
@@ -116,8 +115,7 @@ private fun SpiritualPhoneApp() {
     }
 
     val profileRepo = remember { ProfileRepository(context) }
-    val profile by profileRepo.profile.collectAsState(initial = UserProfile())
-    var showProfile by remember { mutableStateOf(false) }
+    var tab by remember { mutableStateOf(AppTab.Map) }
     var showDebug by remember { mutableStateOf(false) }
     LaunchedEffect(locationGranted) {
         val fine = ContextCompat.checkSelfPermission(
@@ -190,24 +188,25 @@ private fun SpiritualPhoneApp() {
             )
         }
 
-        ProfileButton(
-            avatarPath = profile.avatarPath,
-            onClick = { showProfile = true },
-            modifier = Modifier.align(Alignment.TopStart).padding(12.dp),
-        )
-
-        // Profile slides in from the left edge (left → right) and back out.
-        AnimatedVisibility(
-            visible = showProfile,
-            enter = slideInHorizontally(initialOffsetX = { -it }) + fadeIn(),
-            exit = slideOutHorizontally(targetOffsetX = { -it }) + fadeOut(),
-        ) {
+        // Profile section (covers the map when active), cross-faded.
+        AnimatedVisibility(visible = tab == AppTab.Profile, enter = fadeIn(), exit = fadeOut()) {
             ProfileScreen(
                 repo = profileRepo,
-                onClose = { showProfile = false },
-                onOpenLogs = { showProfile = false; showDebug = true },
+                onClose = { tab = AppTab.Map },
+                onOpenLogs = { showDebug = true },
             )
         }
+
+        // AR section, cross-faded.
+        AnimatedVisibility(visible = tab == AppTab.Ar, enter = fadeIn(), exit = fadeOut()) {
+            ArScreen(Modifier.fillMaxSize())
+        }
+
+        BottomTabBar(
+            selected = tab,
+            onSelect = { tab = it },
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
 
         if (showDebug) {
             DebugPanel(onClose = { showDebug = false }, modifier = Modifier.fillMaxSize())

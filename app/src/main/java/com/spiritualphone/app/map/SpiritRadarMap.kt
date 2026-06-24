@@ -323,8 +323,8 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
             },
             onStop = { radarActive = false },
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp),
+                .align(Alignment.TopStart)
+                .padding(start = 16.dp, top = 48.dp),
         )
 
         FloatingActionButton(
@@ -336,9 +336,11 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
                     map?.let { recenterOnUser(it, lastLocation) }
                 }
             },
+            containerColor = Color(0xFF1C1C1E),
+            contentColor = Color.White,
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
+                .align(Alignment.TopEnd)
+                .padding(end = 16.dp, top = 48.dp)
         ) {
             Icon(Icons.Filled.MyLocation, contentDescription = "Моё местоположение")
         }

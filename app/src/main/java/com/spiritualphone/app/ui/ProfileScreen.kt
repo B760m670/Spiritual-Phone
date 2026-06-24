@@ -70,7 +70,7 @@ private fun profileUrl(userId: String?) = "https://spiritualphone.app/u/${userId
 private val BG = Color(0xFF0A0C10)        // near-black backdrop
 private val CARD = Color(0xFF111114)      // grouped content surface
 private val CIRCLE = Color(0xFF1C1C1E)    // circular action button
-private val ACCENT = Color(0xFFE53935)    // our red (not SpiritChat's blue)
+private val ACCENT = Color(0xFFEDEDED)    // monochrome accent (no red/blue)
 private val TEXT = Color(0xFFEDEDED)
 private val MUTED = Color(0xFF8A90A0)
 
@@ -227,7 +227,8 @@ fun ProfileScreen(
 
             Spacer(Modifier.height(12.dp))
             TextButton(onClick = onOpenLogs) { Text("Логи (отладка)", color = MUTED) }
-            Spacer(Modifier.height(24.dp))
+            // Clear the floating bottom tab bar.
+            Spacer(Modifier.height(110.dp))
         }
     }
 
