@@ -16,6 +16,7 @@ import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,7 +45,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -59,10 +63,16 @@ import com.spiritualphone.app.world.DeterministicWorld
 import com.spiritualphone.app.world.GeoMath
 import kotlinx.coroutines.delay
 import kotlin.math.abs
+import kotlin.math.atan2
+import kotlin.math.cos
 import kotlin.math.roundToInt
+import kotlin.math.sin
 
 /** Horizontal field of view (deg) we map markers across — roughly a phone cam. */
 private const val FOV_DEG = 60f
+
+/** Fixed elevation of the sky-anchored Garganta, degrees above the horizon. */
+private const val SKY_ELEVATION_DEG = 45f
 
 /**
  * AR section: a live camera preview with nearby Hollows anchored by real-world
@@ -131,25 +141,10 @@ private fun ArView() {
         }, ContextCompat.getMainExecutor(context))
     }
 
-    // Garganta (dev): centred, auto-cycle — cut → open → hold → collapse → repeat.
-    val gargantaOpen = remember { Animatable(0f) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            gargantaOpen.snapTo(0f)
-            gargantaOpen.animateTo(1f, tween(2600, easing = FastOutSlowInEasing))
-            delay(1600)
-            gargantaOpen.animateTo(0f, tween(1800, easing = FastOutSlowInEasing))
-            delay(1400)
-        }
-    }
-
-    // The camera, wrapped by the lensing effect (bends the frame near the rupture).
-    GargantaLens(open = { gargantaOpen.value }, modifier = Modifier.fillMaxSize()) {
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
-    }
-
-    // Device azimuth (where the camera points) from the rotation-vector sensor.
+    // Device orientation from the rotation-vector sensor: azimuth (compass) where
+    // the camera points, and pitch (how far up/down the camera is aimed).
     var azimuth by remember { mutableStateOf(0f) }
+    var pitch by remember { mutableStateOf(0f) }
     DisposableEffect(Unit) {
         val sensorManager = context.getSystemService(SensorManager::class.java)
         val sensor = sensorManager?.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
@@ -166,13 +161,80 @@ private fun ArView() {
                 )
                 SensorManager.getOrientation(remapped, orientation)
                 azimuth = ((Math.toDegrees(orientation[0].toDouble()).toFloat()) + 360f) % 360f
+                // Camera elevation: 0° at the horizon, +90° straight up.
+                pitch = -Math.toDegrees(orientation[1].toDouble()).toFloat()
             }
             override fun onAccuracyChanged(s: Sensor?, accuracy: Int) {}
         }
         if (sensor != null) {
-            sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+            sensorManager.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
         }
         onDispose { sensorManager?.unregisterListener(listener) }
+    }
+
+    // Anchor the rupture to a fixed point in the sky: its azimuth is captured the
+    // first time we get a real heading (the way you face on entry), its elevation
+    // is fixed high above the horizon. Turn / look up to find it.
+    var targetAz by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(azimuth) {
+        if (targetAz == null && azimuth != 0f) targetAz = azimuth
+    }
+    val targetElevation = SKY_ELEVATION_DEG
+
+    // Vertical FOV from the horizontal one and the screen aspect.
+    val config = LocalConfiguration.current
+    val vFov = FOV_DEG * (config.screenHeightDp.toFloat() / config.screenWidthDp.toFloat())
+
+    // Screen-space centre of the rupture, as a fraction of the view (0.5,0.5 = mid).
+    val center = {
+        val tz = targetAz
+        if (tz == null) {
+            Offset(0.5f, 0.5f)
+        } else {
+            val dAz = ((tz - azimuth + 540f) % 360f) - 180f          // -180..180, +right
+            val dEl = targetElevation - pitch                         // + = target above aim
+            Offset(0.5f + dAz / FOV_DEG, 0.5f - dEl / vFov)
+        }
+    }
+
+    // Garganta (dev): auto-cycle — cut → open → hold → collapse → repeat.
+    val gargantaOpen = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            gargantaOpen.snapTo(0f)
+            gargantaOpen.animateTo(1f, tween(2600, easing = FastOutSlowInEasing))
+            delay(1600)
+            gargantaOpen.animateTo(0f, tween(1800, easing = FastOutSlowInEasing))
+            delay(1400)
+        }
+    }
+
+    // The camera, wrapped by the lensing effect anchored to the sky.
+    GargantaLens(
+        open = { gargantaOpen.value },
+        center = center,
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+    }
+
+    // Guide arrow toward the rupture while it's off-screen.
+    Canvas(Modifier.fillMaxSize()) {
+        val c = center()
+        val onScreen = c.x in 0.10f..0.90f && c.y in 0.12f..0.88f
+        if (!onScreen) {
+            val ang = atan2(c.y - 0.5f, c.x - 0.5f)
+            val px = size.width * 0.5f + cos(ang) * size.width * 0.34f
+            val py = size.height * 0.5f + sin(ang) * size.height * 0.34f
+            val s = 44f
+            val tip = Offset(px + cos(ang) * s, py + sin(ang) * s)
+            val left = Offset(px + cos(ang + 2.5f) * s, py + sin(ang + 2.5f) * s)
+            val right = Offset(px + cos(ang - 2.5f) * s, py + sin(ang - 2.5f) * s)
+            val path = Path().apply {
+                moveTo(tip.x, tip.y); lineTo(left.x, left.y); lineTo(right.x, right.y); close()
+            }
+            drawPath(path, Color(0xDD66B3FF))
+        }
     }
 
     // Location + nearby Hollows (deterministic world, same as the map).

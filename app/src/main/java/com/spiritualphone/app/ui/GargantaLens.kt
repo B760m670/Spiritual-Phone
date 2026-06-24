@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 
@@ -35,10 +36,11 @@ import androidx.compose.ui.graphics.graphicsLayer
 fun GargantaLens(
     open: () -> Float,
     modifier: Modifier = Modifier,
+    center: () -> Offset = { Offset(0.5f, 0.5f) },
     content: @Composable BoxScope.() -> Unit,
 ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        Lensed(open, modifier, content)
+        Lensed(open, center, modifier, content)
     } else {
         Box(modifier, content = content)
     }
@@ -48,6 +50,7 @@ fun GargantaLens(
 @Composable
 private fun Lensed(
     open: () -> Float,
+    center: () -> Offset,
     modifier: Modifier,
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -59,7 +62,9 @@ private fun Lensed(
 
     val mod = if (shader != null) {
         modifier.graphicsLayer {
+            val c = center()
             shader.setFloatUniform("uResolution", size.width, size.height)
+            shader.setFloatUniform("uCenter", size.width * c.x, size.height * c.y)
             shader.setFloatUniform("uTime", time)
             shader.setFloatUniform("uOpen", open().coerceIn(0f, 1f))
             renderEffect = RenderEffect
@@ -76,12 +81,13 @@ private fun Lensed(
 private const val AGSL_GARGANTA = """
 uniform shader content;
 uniform float2 uResolution;
+uniform float2 uCenter;
 uniform float uTime;
 uniform float uOpen;
 
 half4 main(float2 fragCoord) {
     float2 res = uResolution;
-    float2 ctr = res * 0.5;
+    float2 ctr = uCenter;                    // rupture centre (sky-anchored)
     float ax = res.x * 0.30;                 // horizontal semi-axis (~20 m, dev)
     float ay = ax * 0.5 * uOpen;             // vertical grows with opening (~10 m)
 
