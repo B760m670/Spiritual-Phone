@@ -3,7 +3,12 @@ package com.spiritualphone.app.ui
 import android.graphics.BitmapFactory
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,8 +32,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.BugReport
+import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
@@ -57,9 +65,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.spiritualphone.app.BuildConfig
 import com.spiritualphone.app.data.ProfileRepository
 import com.spiritualphone.app.data.UserProfile
 import kotlinx.coroutines.Dispatchers
@@ -85,6 +95,12 @@ private val SEP = Color(0xFF27272A)
 private val AVATAR = 100.dp
 private val BTN_H = 44.dp
 
+private val OK = Color(0xFF34D399)
+private val ERR = Color(0xFFF87171)
+
+/** Pushed sub-screens of the profile. */
+private enum class ProfileSub { Username, About }
+
 /**
  * Profile section, SpiritChat-style. One screen with two cross-faded modes:
  *
@@ -103,8 +119,10 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
     val profile by repo.profile.collectAsState(initial = UserProfile())
 
     var editing by remember { mutableStateOf(false) }
+    var sub by remember { mutableStateOf<ProfileSub?>(null) }
     var nickname by remember(profile.nickname) { mutableStateOf(profile.nickname) }
     var age by remember(profile.age) { mutableStateOf(profile.age) }
+    var bio by remember(profile.bio) { mutableStateOf(profile.bio) }
 
     var userId by remember { mutableStateOf(profile.userId) }
     LaunchedEffect(Unit) { userId = repo.ensureUserId() }
@@ -217,14 +235,34 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                                 "Сколько вам лет",
                                 numeric = true,
                             )
+                            Separator()
+                            EditField("О себе", bio, { bio = it.take(200) }, "Несколько слов о себе")
                         }
                     } else {
                         Grouped(ROW) {
+                            SettingRow(
+                                Icons.Filled.AlternateEmail, "Имя пользователя",
+                                onClick = { sub = ProfileSub.Username },
+                            ) {
+                                Text(
+                                    if (profile.username.isBlank()) "Не задан" else "@${profile.username}",
+                                    color = SUBTLE, fontSize = 15.sp,
+                                )
+                                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
+                            }
+                            Separator(startInset = 52.dp)
                             SettingRow(Icons.Filled.Notifications, "Уведомления") {
                                 Switch(
                                     checked = profile.notificationsEnabled,
                                     onCheckedChange = { scope.launch { repo.setNotificationsEnabled(it) } },
                                 )
+                            }
+                            Separator(startInset = 52.dp)
+                            SettingRow(
+                                Icons.Filled.Info, "О приложении",
+                                onClick = { sub = ProfileSub.About },
+                            ) {
+                                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
                             }
                             Separator(startInset = 52.dp)
                             SettingRow(Icons.Filled.BugReport, "Логи (отладка)", onClick = onOpenLogs) {
@@ -242,7 +280,9 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
         Box(Modifier.align(Alignment.TopStart).statusBarsPadding().padding(start = 16.dp, top = 10.dp)) {
             Crossfade(targetState = editing, label = "leftBtn") { isEdit ->
                 if (isEdit) {
-                    CornerPill("Отмена") { nickname = profile.nickname; age = profile.age; editing = false }
+                    CornerPill("Отмена") {
+                        nickname = profile.nickname; age = profile.age; bio = profile.bio; editing = false
+                    }
                 } else {
                     QrThumb { showQr = true }
                 }
@@ -254,13 +294,33 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
             Crossfade(targetState = editing, label = "rightBtn") { isEdit ->
                 if (isEdit) {
                     CornerPill("Готово", bold = true) {
-                        scope.launch { repo.setNickname(nickname); repo.setAge(age) }
+                        scope.launch { repo.setNickname(nickname); repo.setAge(age); repo.setBio(bio) }
                         editing = false
                     }
                 } else {
                     CornerPill("Изм.") { editing = true }
                 }
             }
+        }
+
+        // Pushed sub-screens (slide in from the right over the profile).
+        AnimatedVisibility(
+            visible = sub == ProfileSub.Username,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            UsernameScreen(
+                initial = profile.username,
+                onBack = { sub = null },
+                onSave = { v -> scope.launch { repo.setUsername(v) }; sub = null },
+            )
+        }
+        AnimatedVisibility(
+            visible = sub == ProfileSub.About,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            AboutScreen(onBack = { sub = null })
         }
     }
 
@@ -413,6 +473,133 @@ private fun QrDialog(content: String, title: String, onDismiss: () -> Unit) {
             }
             Spacer(Modifier.height(12.dp))
             Text("Покажите код, чтобы поделиться профилем", color = SUBTLE, fontSize = 12.sp)
+        }
+    }
+}
+
+/**
+ * Full-screen sub-screen shell: a nav bar (glass back button + centred title +
+ * optional Готово pill) over the standard black background, with scrollable
+ * content. Mirrors SpiritChat's privacy/cloud-password layout.
+ */
+@Composable
+private fun SubScreenScaffold(
+    title: String,
+    onBack: () -> Unit,
+    done: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(color = BG, modifier = Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().statusBarsPadding()) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .glass(shape = CircleShape, tint = Color.Black.copy(alpha = 0.42f))
+                        .clickable(onClick = onBack),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.ChevronLeft, "Назад", tint = WHITE, modifier = Modifier.size(26.dp))
+                }
+                Text(
+                    title,
+                    color = WHITE,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f),
+                )
+                if (done != null) {
+                    CornerPill("Готово", bold = true, onClick = done)
+                } else {
+                    Spacer(Modifier.size(42.dp))
+                }
+            }
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+            ) {
+                Spacer(Modifier.height(12.dp))
+                content()
+                Spacer(Modifier.height(110.dp))
+            }
+        }
+    }
+}
+
+/** Local @handle editor (no server — format-validated only). */
+@Composable
+private fun UsernameScreen(initial: String, onBack: () -> Unit, onSave: (String) -> Unit) {
+    var value by remember { mutableStateOf(initial) }
+    val trimmed = value.trim()
+    val valid = trimmed.isEmpty() ||
+        (trimmed.length in 3..20 && trimmed.first() in 'a'..'z' &&
+            trimmed.all { it in 'a'..'z' || it in '0'..'9' || it == '_' })
+
+    SubScreenScaffold("Имя пользователя", onBack = onBack, done = { if (valid) onSave(trimmed) }) {
+        Grouped(CARD) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp)) {
+                Text("Позывной", color = LABEL, fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(4.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("@", color = SUBTLE, fontSize = 16.sp)
+                    BasicTextField(
+                        value = value,
+                        onValueChange = { v ->
+                            value = v.lowercase().filter { it in 'a'..'z' || it in '0'..'9' || it == '_' }.take(20)
+                        },
+                        singleLine = true,
+                        textStyle = TextStyle(color = WHITE, fontSize = 16.sp),
+                        cursorBrush = SolidColor(WHITE),
+                        modifier = Modifier.weight(1f),
+                        decorationBox = { inner ->
+                            Box {
+                                if (value.isEmpty()) Text("kurosaki", color = PLACEHOLDER, fontSize = 16.sp)
+                                inner()
+                            }
+                        },
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            when {
+                value.isBlank() -> "Другие смогут найти вас по позывному."
+                valid -> "Доступно."
+                else -> "3–20 символов: латиница, цифры, _ (начинается с буквы)."
+            },
+            color = if (value.isBlank()) SUBTLE else if (valid) OK else ERR,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 4.dp),
+        )
+    }
+}
+
+/** App info screen. */
+@Composable
+private fun AboutScreen(onBack: () -> Unit) {
+    SubScreenScaffold("О приложении", onBack = onBack) {
+        Spacer(Modifier.height(20.dp))
+        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Spiritual Phone", color = WHITE, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(6.dp))
+            Text("Версия ${BuildConfig.VERSION_NAME}", color = SUBTLE, fontSize = 14.sp)
+        }
+        Spacer(Modifier.height(24.dp))
+        Grouped(CARD) {
+            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                Text(
+                    "Денрейсинки — детектор духовной активности. Пустые появляются как локальные аномалии; держите телефон под рукой.",
+                    color = TEXT,
+                    fontSize = 14.sp,
+                )
+            }
         }
     }
 }

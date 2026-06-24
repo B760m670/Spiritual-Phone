@@ -24,6 +24,8 @@ class ProfileRepository(context: Context) {
         UserProfile(
             nickname = prefs[NICK].orEmpty(),
             age = prefs[AGE].orEmpty(),
+            username = prefs[USERNAME].orEmpty(),
+            bio = prefs[BIO].orEmpty(),
             avatarPath = prefs[AVATAR],
             notificationsEnabled = prefs[NOTIFICATIONS] ?: true,
             userId = prefs[USER_ID],
@@ -32,6 +34,8 @@ class ProfileRepository(context: Context) {
 
     suspend fun setNickname(value: String) = store.edit { it[NICK] = value }
     suspend fun setAge(value: String) = store.edit { it[AGE] = value }
+    suspend fun setUsername(value: String) = store.edit { it[USERNAME] = value }
+    suspend fun setBio(value: String) = store.edit { it[BIO] = value }
     suspend fun setNotificationsEnabled(enabled: Boolean) =
         store.edit { it[NOTIFICATIONS] = enabled }
 
@@ -50,6 +54,8 @@ class ProfileRepository(context: Context) {
     private companion object {
         val NICK = stringPreferencesKey("nickname")
         val AGE = stringPreferencesKey("age")
+        val USERNAME = stringPreferencesKey("username")
+        val BIO = stringPreferencesKey("bio")
         val AVATAR = stringPreferencesKey("avatar_path")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
         val USER_ID = stringPreferencesKey("user_id")

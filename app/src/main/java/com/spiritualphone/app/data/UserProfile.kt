@@ -6,6 +6,8 @@ package com.spiritualphone.app.data
 data class UserProfile(
     val nickname: String = "",
     val age: String = "",
+    val username: String = "",      // local @позывной
+    val bio: String = "",           // "О себе"
     val avatarPath: String? = null,
     val notificationsEnabled: Boolean = true,
     /** Stable local identity, generated on first use; becomes the account id
