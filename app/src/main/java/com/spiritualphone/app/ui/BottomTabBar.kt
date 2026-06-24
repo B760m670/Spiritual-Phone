@@ -58,6 +58,7 @@ private val UNSELECTED = Color(0xFF8E8E93)
 fun BottomTabBar(
     selected: AppTab,
     onSelect: (AppTab) -> Unit,
+    showLabels: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val tabs = AppTab.entries
@@ -97,8 +98,10 @@ fun BottomTabBar(
                         verticalArrangement = Arrangement.Center,
                     ) {
                         Icon(tab.icon, contentDescription = tab.label, tint = tint, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.height(3.dp))
-                        Text(tab.label, color = tint, fontSize = 11.sp)
+                        if (showLabels) {
+                            Spacer(Modifier.height(3.dp))
+                            Text(tab.label, color = tint, fontSize = 11.sp)
+                        }
                     }
                 }
             }

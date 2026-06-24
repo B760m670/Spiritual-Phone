@@ -17,12 +17,16 @@ class HollowAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getStringExtra(HollowAlarmScheduler.EXTRA_ID) ?: return
 
-        val enabled = runCatching {
-            runBlocking { ProfileRepository(context).profile.first().notificationsEnabled }
-        }.getOrDefault(true)
-        if (!enabled) return
+        val profile = runCatching {
+            runBlocking { ProfileRepository(context).profile.first() }
+        }.getOrNull()
+        if (profile != null && !profile.notificationsEnabled) return
 
         DebugLog.log("Alarm fired: hollow $id within alert radius")
-        HollowNotifier(context).notifyApproach(id)
+        HollowNotifier(context).notifyApproach(
+            id,
+            sound = profile?.soundEnabled ?: true,
+            vibrate = profile?.vibrationEnabled ?: true,
+        )
     }
 }

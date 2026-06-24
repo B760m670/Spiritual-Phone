@@ -28,10 +28,17 @@ class ProfileRepository(context: Context) {
             bio = prefs[BIO].orEmpty(),
             avatarPath = prefs[AVATAR],
             notificationsEnabled = prefs[NOTIFICATIONS] ?: true,
+            soundEnabled = prefs[SOUND] ?: true,
+            vibrationEnabled = prefs[VIBRATION] ?: true,
+            tabLabels = prefs[TAB_LABELS] ?: true,
             appLockHash = prefs[APP_LOCK],
             userId = prefs[USER_ID],
         )
     }
+
+    suspend fun setSoundEnabled(enabled: Boolean) = store.edit { it[SOUND] = enabled }
+    suspend fun setVibrationEnabled(enabled: Boolean) = store.edit { it[VIBRATION] = enabled }
+    suspend fun setTabLabels(enabled: Boolean) = store.edit { it[TAB_LABELS] = enabled }
 
     /** SHA-256 hex of a PIN — what we persist (never the PIN itself). */
     fun hashPin(pin: String): String {
@@ -68,6 +75,9 @@ class ProfileRepository(context: Context) {
         val BIO = stringPreferencesKey("bio")
         val AVATAR = stringPreferencesKey("avatar_path")
         val NOTIFICATIONS = booleanPreferencesKey("notifications_enabled")
+        val SOUND = booleanPreferencesKey("sound_enabled")
+        val VIBRATION = booleanPreferencesKey("vibration_enabled")
+        val TAB_LABELS = booleanPreferencesKey("tab_labels")
         val APP_LOCK = stringPreferencesKey("app_lock_hash")
         val USER_ID = stringPreferencesKey("user_id")
     }

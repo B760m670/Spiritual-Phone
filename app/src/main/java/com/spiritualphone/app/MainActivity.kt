@@ -209,6 +209,7 @@ private fun SpiritualPhoneApp() {
         BottomTabBar(
             selected = tab,
             onSelect = { tab = it },
+            showLabels = profile.tabLabels,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
 

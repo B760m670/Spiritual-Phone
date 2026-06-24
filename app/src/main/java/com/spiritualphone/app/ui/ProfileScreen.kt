@@ -31,11 +31,11 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -65,7 +65,7 @@ import java.io.File
 private fun profileUrl(userId: String?) = "https://spiritualphone.app/u/${userId ?: "anon"}"
 
 /** Pushed sub-screens of the profile. */
-private enum class ProfileSub { Username, About, Privacy, AppLock }
+private enum class ProfileSub { Username, Notifications, Appearance, About, Privacy, AppLock }
 
 /**
  * Profile section, SpiritChat-style. One screen with two cross-faded modes
@@ -169,6 +169,16 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                                 fontWeight = FontWeight.Medium,
                                 modifier = Modifier.clickable { pickAvatar.launch("image/*") },
                             )
+                            if (profile.avatarPath != null) {
+                                Spacer(Modifier.height(10.dp))
+                                Text(
+                                    "Удалить фото",
+                                    color = SUBTLE,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.clickable { scope.launch { repo.setAvatarPath(null) } },
+                                )
+                            }
                         } else {
                             Text(
                                 nickname.ifEmpty { "Мой профиль" },
@@ -214,11 +224,18 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                                 Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
                             }
                             Separator(startInset = 52.dp)
-                            SettingRow(Icons.Filled.Notifications, "Уведомления") {
-                                Switch(
-                                    checked = profile.notificationsEnabled,
-                                    onCheckedChange = { scope.launch { repo.setNotificationsEnabled(it) } },
-                                )
+                            SettingRow(
+                                Icons.Filled.Notifications, "Уведомления",
+                                onClick = { sub = ProfileSub.Notifications },
+                            ) {
+                                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
+                            }
+                            Separator(startInset = 52.dp)
+                            SettingRow(
+                                Icons.Filled.Palette, "Внешний вид",
+                                onClick = { sub = ProfileSub.Appearance },
+                            ) {
+                                Icon(Icons.Filled.ChevronRight, null, tint = SUBTLE, modifier = Modifier.size(18.dp))
                             }
                             Separator(startInset = 52.dp)
                             SettingRow(
@@ -284,6 +301,20 @@ fun ProfileScreen(repo: ProfileRepository, onOpenLogs: () -> Unit) {
                 onBack = { sub = null },
                 onSave = { v -> scope.launch { repo.setUsername(v) }; sub = null },
             )
+        }
+        AnimatedVisibility(
+            visible = sub == ProfileSub.Notifications,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            NotificationsScreen(repo = repo, onBack = { sub = null })
+        }
+        AnimatedVisibility(
+            visible = sub == ProfileSub.Appearance,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+        ) {
+            AppearanceScreen(repo = repo, onBack = { sub = null })
         }
         AnimatedVisibility(
             visible = sub == ProfileSub.About,

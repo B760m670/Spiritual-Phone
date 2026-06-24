@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -112,6 +113,24 @@ internal fun SettingRow(
         }
         Text(label, color = TEXT, fontSize = 17.sp, modifier = Modifier.weight(1f))
         trailing()
+    }
+}
+
+/** Settings row with a trailing Switch (greyed out when [enabled] is false). */
+@Composable
+internal fun ToggleRow(
+    icon: ImageVector,
+    label: String,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    SettingRow(icon, label) {
+        Switch(
+            checked = checked,
+            onCheckedChange = if (enabled) onCheckedChange else null,
+            enabled = enabled,
+        )
     }
 }
 

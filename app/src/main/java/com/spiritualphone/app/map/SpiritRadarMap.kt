@@ -197,7 +197,9 @@ fun SpiritRadarMap(modifier: Modifier = Modifier) {
         alertList.forEach { h ->
             if (h.id !in alerted) {
                 alerted.add(h.id)
-                if (profile.notificationsEnabled) notifier.notifySpawn(h)
+                if (profile.notificationsEnabled) {
+                    notifier.notifySpawn(h, profile.soundEnabled, profile.vibrationEnabled)
+                }
             }
         }
         alerted.retainAll(hollows.map { it.id }.toSet())
