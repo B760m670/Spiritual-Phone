@@ -7,8 +7,12 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.location.Location
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -125,6 +129,23 @@ private fun ArView() {
         }, ContextCompat.getMainExecutor(context))
     }
     AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+
+    // Garganta (dev): centred, auto-cycle — cut → open → hold → collapse → repeat.
+    val gargantaOpen = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            gargantaOpen.snapTo(0f)
+            gargantaOpen.animateTo(1f, tween(2600, easing = FastOutSlowInEasing))
+            delay(1600)
+            gargantaOpen.animateTo(0f, tween(1800, easing = FastOutSlowInEasing))
+            delay(1400)
+        }
+    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        GargantaShader(open = { gargantaOpen.value }, modifier = Modifier.fillMaxSize())
+    } else {
+        Garganta(Modifier.fillMaxSize())
+    }
 
     // Device azimuth (where the camera points) from the rotation-vector sensor.
     var azimuth by remember { mutableStateOf(0f) }
