@@ -39,6 +39,16 @@ object GeoMath {
         return destination(lat, lon, bearing, distance)
     }
 
+    /** Initial bearing (degrees, 0..360, 0 = north) from point 1 to point 2. */
+    fun bearing(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val p1 = Math.toRadians(lat1)
+        val p2 = Math.toRadians(lat2)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val y = sin(dLon) * cos(p2)
+        val x = cos(p1) * sin(p2) - sin(p1) * cos(p2) * cos(dLon)
+        return (Math.toDegrees(atan2(y, x)) + 360.0) % 360.0
+    }
+
     /** Great-circle distance in metres between two coordinates. */
     fun distanceM(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
         val dLat = Math.toRadians(lat2 - lat1)

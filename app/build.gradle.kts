@@ -97,6 +97,12 @@ dependencies {
     // jank, and enables Play Store cloud profiles.
     implementation("androidx.profileinstaller:profileinstaller:1.4.1")
 
+    // CameraX — live camera preview for the AR section.
+    implementation("androidx.camera:camera-core:1.3.4")
+    implementation("androidx.camera:camera-camera2:1.3.4")
+    implementation("androidx.camera:camera-lifecycle:1.3.4")
+    implementation("androidx.camera:camera-view:1.3.4")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
 }
