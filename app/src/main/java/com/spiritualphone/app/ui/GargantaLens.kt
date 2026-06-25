@@ -154,8 +154,10 @@ half4 main(float2 fragCoord) {
     col = mix(col, half3(0.0), shadow);
 
     // Clip the rupture to real sky: where the segmenter says "not sky", show the
-    // plain camera. Soft mask => the rupture tucks behind rooftops/horizon.
-    half sky = skyMask.eval(fragCoord).r;
+    // plain camera. Hard threshold — only *confident* sky shows, so borderline
+    // surfaces (a flat bright wall) don't leak the effect.
+    half raw = skyMask.eval(fragCoord).r;
+    half sky = smoothstep(0.55, 0.85, raw);
     half3 cam = content.eval(fragCoord).rgb;
     col = mix(cam, col, sky);
     return half4(col, 1.0);
