@@ -113,6 +113,11 @@ dependencies {
     implementation("org.tensorflow:tensorflow-lite:2.16.1")
     implementation("org.tensorflow:tensorflow-lite-gpu:2.16.1")
 
+    // ARCore — depth-based occlusion so the Garganta hides behind near surfaces
+    // (a wall) and only floats in genuinely open space / sky. AR is *optional*:
+    // the app still installs and runs on devices without ARCore.
+    implementation("com.google.ar:core:1.44.0")
+
     debugImplementation("androidx.compose.ui:ui-tooling")
     implementation("androidx.compose.ui:ui-tooling-preview")
 }

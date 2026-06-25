@@ -12,3 +12,7 @@
 -keep class org.tensorflow.lite.** { *; }
 -keep class org.tensorflow.lite.gpu.** { *; }
 -dontwarn org.tensorflow.lite.**
+
+# ARCore — JNI-backed; keep defensively.
+-keep class com.google.ar.** { *; }
+-dontwarn com.google.ar.**

@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.spiritualphone.app.ar.ArCompat
 import com.spiritualphone.app.ar.SkyAnalyzer
 import com.spiritualphone.app.ar.SkySegmenter
 import com.spiritualphone.app.location.LocationProvider
@@ -68,7 +69,9 @@ import com.spiritualphone.app.world.AlertConfig
 import com.spiritualphone.app.world.DeterministicWorld
 import com.spiritualphone.app.world.GeoMath
 import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -272,12 +275,21 @@ private fun ArView() {
         AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
     }
 
-    // Dev readout: live sky coverage — confirms the segmenter is alive and aimed.
-    Text(
-        "sky ${(skyCoverage * 100).roundToInt()}%",
-        color = Color.White, fontSize = 12.sp,
-        modifier = Modifier.padding(12.dp),
-    )
+    // Dev readout: ARCore/Depth GO-NO-GO probe + live sky coverage.
+    var arReport by remember { mutableStateOf("ARCore: проверка…") }
+    LaunchedEffect(Unit) {
+        val r = withContext(Dispatchers.IO) { ArCompat.check(context) }
+        arReport = buildString {
+            append("ARCore: ").append(r.availability)
+            append(" · Depth: ")
+            append(when (r.depthSupported) { true -> "да"; false -> "нет"; null -> "?" })
+            r.note?.let { append(" (").append(it).append(")") }
+        }
+    }
+    Column(Modifier.padding(12.dp)) {
+        Text(arReport, color = Color.White, fontSize = 12.sp)
+        Text("sky ${(skyCoverage * 100).roundToInt()}%", color = Color.White, fontSize = 12.sp)
+    }
 
     // Guide arrow toward the rupture while it's off-screen.
     Canvas(Modifier.fillMaxSize()) {
