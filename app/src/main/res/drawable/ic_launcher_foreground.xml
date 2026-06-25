@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Stylised Hollow mask (Bleach). No text, no katana. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Skull / mask base -->
+    <path
+        android:fillColor="#F2F2F2"
+        android:pathData="M54,24 C68,24 79,35 79,51 C79,63 73,71 67,77 C63,81 58,84 54,84 C50,84 45,81 41,77 C35,71 29,63 29,51 C29,35 40,24 54,24 Z" />
+
+    <!-- Left hollow eye (angular) -->
+    <path
+        android:fillColor="#07090E"
+        android:pathData="M37,47 L51,52 L48,60 L38,57 Z" />
+    <!-- Right hollow eye -->
+    <path
+        android:fillColor="#07090E"
+        android:pathData="M71,47 L57,52 L60,60 L70,57 Z" />
+
+    <!-- Fanged grin -->
+    <path
+        android:fillColor="#07090E"
+        android:pathData="M40,66 L68,66 L66,73 L62,67 L58,73 L54,67 L50,73 L46,67 L42,73 Z" />
+
+    <!-- Red mask markings -->
+    <path
+        android:strokeColor="#E53935"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M45,29 L41,45" />
+    <path
+        android:strokeColor="#E53935"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M63,29 L67,45" />
+</vector>
